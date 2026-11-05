@@ -16,13 +16,22 @@ uv run python scripts/demo_fork.py                  # fork a scripted run and pr
 ```
 
 Tests and the demo need the local stack. The API is at http://127.0.0.1:8000, with interactive docs
-at `/docs`. The local stack uses a mock LLM and mock tools for now.
+at `/docs`.
+
+To run models with no account, use Ollama (a GPU helps):
+
+```sh
+APP_OLLAMA_URL=http://ollama:11434 docker compose --profile ollama up -d --build --wait api worker beat ollama ollama-pull
+```
+
+Hosted providers (Groq, Gemini, OpenRouter) use a key you save with `PUT /api/keys/{provider}`.
 
 To test failure recovery (killing a worker mid-step and stopping the broker), start the stack with
 short leases and slow steps, then run the smoke test:
 
 ```sh
-APP_LEASE_SECONDS=10 APP_MOCK_LLM_LATENCY_SECONDS=1 docker compose up -d --build --wait api worker beat
+APP_LEASE_SECONDS=10 APP_MOCK_LLM_LATENCY_SECONDS=1 APP_ALLOW_MOCK_LLM=true APP_DEFAULT_PROVIDER=mock \
+  docker compose up -d --build --wait api worker beat
 uv run python scripts/smoke_local.py
 ```
 

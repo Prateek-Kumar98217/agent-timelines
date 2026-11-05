@@ -1,0 +1,19 @@
+# Self-hosted search for web_search. Only the JSON API is used, from inside the compose network.
+# DuckDuckGo is disabled because it refuses automated requests.
+use_default_settings:
+  engines:
+    remove:
+      - duckduckgo
+      - duckduckgo images
+      - duckduckgo videos
+      - duckduckgo news
+general:
+  instance_name: agent-timelines
+search:
+  formats:
+    - json
+  safe_search: 1
+server:
+  limiter: false
+  image_proxy: false
+  method: GET

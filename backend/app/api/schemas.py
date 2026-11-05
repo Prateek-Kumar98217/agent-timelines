@@ -4,13 +4,28 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 MAX_TASK_CHARS = 2_000
 
 
 class CreateTree(BaseModel):
     task: str = Field(min_length=1, max_length=MAX_TASK_CHARS)
+    provider: str | None = Field(default=None, max_length=32)
+    model: str | None = Field(default=None, min_length=1, max_length=120)
+
+
+class SaveKey(BaseModel):
+    # SecretStr keeps the key out of logs, reprs and validation errors.
+    api_key: SecretStr
+
+
+class ProviderOut(BaseModel):
+    name: str
+    needs_key: bool
+    available: bool
+    default_model: str
+    key_last_four: str | None
 
 
 class ForkRequest(BaseModel):

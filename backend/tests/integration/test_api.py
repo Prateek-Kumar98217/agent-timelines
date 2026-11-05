@@ -3,6 +3,7 @@ from collections.abc import Iterator
 from uuid import UUID, uuid4
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.adapters.memory import (
@@ -14,11 +15,12 @@ from app.adapters.memory import (
     NoopTelemetry,
 )
 from app.adapters.mock import MockLLM
-from app.api.main import create_app
+from app.api.main import choose_provider, create_app
 from app.api.stream import event_stream
 from app.bootstrap import Runtime
 from app.db.session import SessionFactory
 from app.domain.engine import start_task
+from app.domain.keys import KeyStore
 from app.factory import Adapters
 from app.ports import Principal, PrincipalKind, TreeEvent
 from app.settings import Profile, Settings
@@ -30,7 +32,7 @@ class Api:
         self.harness = Harness(session_factory, MockLLM(tool_turns=1))
         auth = FakeAuthenticator({"token": Principal(self.harness.user.id, PrincipalKind.USER)})
         harness = self.harness
-        adapters = Adapters(
+        self.adapters = adapters = Adapters(
             queue=harness.queue,
             llm=harness.llm,
             tools=harness.tools,
@@ -42,7 +44,9 @@ class Api:
             embedder=HashEmbedder(),
             telemetry=NoopTelemetry(),
         )
-        runtime = Runtime(Settings(profile=Profile.TEST), adapters, session_factory, harness.deps)
+        settings = Settings(profile=Profile.TEST, allow_mock_llm=True, default_provider="mock")
+        self.key_store = KeyStore(session_factory, b"k" * 32)
+        runtime = Runtime(settings, adapters, session_factory, harness.deps, self.key_store)
         self.client = TestClient(create_app(runtime), headers={"Authorization": "Bearer token"})
 
     def start(self, task: str = "the task") -> tuple[str, str]:
@@ -285,3 +289,75 @@ def test_stream_recovers_events_that_pub_sub_dropped(clean_db: SessionFactory) -
 
     frames = asyncio.run(scenario())
     assert any(frame.startswith("id: 4") for frame in frames)
+
+
+API_KEY = "gsk-very-secret-key-ABCD"
+
+
+def test_providers_list_what_is_usable(api: Api) -> None:
+    providers = {item["name"]: item for item in api.client.get("/api/providers").json()}
+    assert set(providers) == {"groq", "gemini", "openrouter", "mock"}
+    assert providers["groq"]["available"] is False
+    assert providers["mock"]["available"] is True
+
+
+def test_saving_a_key_never_returns_it(api: Api) -> None:
+    response = api.client.put("/api/keys/groq", json={"api_key": API_KEY})
+    assert response.status_code == 200
+    assert response.json()["key_last_four"] == "ABCD"
+    assert response.json()["available"] is True
+    assert API_KEY not in response.text
+    listed = api.client.get("/api/providers").text
+    assert API_KEY not in listed
+    assert api.key_store.get(api.harness.user.id, "groq") == API_KEY
+
+
+def test_a_key_is_not_echoed_by_validation_errors(api: Api) -> None:
+    response = api.client.put("/api/keys/groq", json={"api_key": {"nested": API_KEY}})
+    assert response.status_code == 422
+    assert API_KEY not in response.text
+
+
+def test_deleting_a_key_makes_the_provider_unavailable(api: Api) -> None:
+    api.client.put("/api/keys/groq", json={"api_key": API_KEY})
+    assert api.client.delete("/api/keys/groq").status_code == 204
+    assert api.client.delete("/api/keys/groq").status_code == 404
+    assert api.key_store.get(api.harness.user.id, "groq") is None
+
+
+@pytest.mark.parametrize("key", ["short", "x" * 501, "        "])
+def test_implausible_keys_are_rejected(api: Api, key: str) -> None:
+    assert api.client.put("/api/keys/groq", json={"api_key": key}).status_code == 422
+
+
+def test_keys_for_unknown_providers_are_rejected(api: Api) -> None:
+    assert api.client.put("/api/keys/ollama", json={"api_key": API_KEY}).status_code == 404
+
+
+def test_trees_record_the_provider_and_model_in_the_immutable_root(api: Api) -> None:
+    api.client.put("/api/keys/groq", json={"api_key": API_KEY})
+    tree_id = api.client.post(
+        "/api/trees", json={"task": "t", "provider": "groq", "model": "some-model"}
+    ).json()["tree_id"]
+    root = api.client.get(f"/api/trees/{tree_id}").json()["nodes"][0]
+    assert root["payload"]["config"]["provider"] == "groq"
+    assert root["payload"]["config"]["model"] == "some-model"
+    assert API_KEY not in str(root)
+    api.harness.queue.messages.clear()
+
+
+def test_a_provider_without_a_key_cant_start_a_tree(api: Api) -> None:
+    response = api.client.post("/api/trees", json={"task": "t", "provider": "groq"})
+    assert response.status_code == 409
+    assert "add its key" in response.json()["detail"]
+
+
+def test_no_provider_at_all_explains_what_to_do(clean_db: SessionFactory) -> None:
+    api = Api(clean_db)
+    settings = Settings(profile=Profile.TEST)
+    principal = Principal(api.harness.user.id, PrincipalKind.USER)
+    runtime = Runtime(settings, api.adapters, clean_db, api.harness.deps, api.key_store)
+    with pytest.raises(HTTPException) as error:
+        choose_provider(runtime, principal, None)
+    assert error.value.status_code == 409
+    assert "add an API key" in str(error.value.detail)

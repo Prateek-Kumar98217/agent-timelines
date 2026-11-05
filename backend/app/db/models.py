@@ -14,17 +14,19 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    Computed,
     DateTime,
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 EMBEDDING_DIMENSIONS = 384
@@ -76,6 +78,23 @@ class User(Base):
     kind: Mapped[str] = mapped_column(String(16))
     external_id: Mapped[str | None] = mapped_column(String(255), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProviderKey(Base):
+    """A user's API key, encrypted. The local build only; the deployed build uses server keys."""
+
+    __tablename__ = "provider_keys"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    provider: Mapped[str] = mapped_column(String(32), primary_key=True)
+    nonce: Mapped[bytes] = mapped_column(LargeBinary)
+    ciphertext: Mapped[bytes] = mapped_column(LargeBinary)
+    last_four: Mapped[str] = mapped_column(String(4))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Tree(Base):
@@ -202,6 +221,39 @@ class ScratchpadChunk(Base):
     chunk_index: Mapped[int] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)
     embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS))
+
+
+class KbDocument(Base):
+    __tablename__ = "kb_documents"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    url: Mapped[str] = mapped_column(Text, unique=True)
+    title: Mapped[str] = mapped_column(Text)
+    topic: Mapped[str] = mapped_column(String(32))
+    content_hash: Mapped[str] = mapped_column(String(64))
+
+
+class KbChunk(Base):
+    __tablename__ = "kb_chunks"
+    __table_args__ = (
+        UniqueConstraint("document_id", "chunk_index", name="uq_kb_chunks_position"),
+        Index(
+            "ix_kb_chunks_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+        Index("ix_kb_chunks_search", "search", postgresql_using="gin"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    document_id: Mapped[UUID] = mapped_column(ForeignKey("kb_documents.id", ondelete="CASCADE"))
+    chunk_index: Mapped[int] = mapped_column(Integer)
+    content: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS))
+    search: Mapped[Any] = mapped_column(
+        TSVECTOR, Computed("to_tsvector('english', content)", persisted=True)
+    )
 
 
 class TreeEventRow(Base):

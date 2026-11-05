@@ -20,6 +20,7 @@ out/
 *.tfvars
 
 # Secrets and local config
+.local/
 .env
 .env.*
 !.env.example

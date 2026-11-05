@@ -11,8 +11,17 @@ x-app: &app
     APP_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-timelines}:${POSTGRES_PASSWORD:-timelines-local}@postgres:5432/${POSTGRES_DB:-timelines}
     APP_REDIS_URL: redis://redis:6379/0
     APP_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+    APP_GATEWAY_URL: http://gateway:8100/mcp
+    APP_BROWSER_URL: http://browser:8000
+    APP_SEARXNG_URL: http://searxng:8080
+    APP_MASTER_KEY_FILE: /data/master.key
     APP_LEASE_SECONDS: ${APP_LEASE_SECONDS:-120}
+    APP_OLLAMA_URL: ${APP_OLLAMA_URL:-}
+    APP_DEFAULT_PROVIDER: ${APP_DEFAULT_PROVIDER:-}
+    APP_ALLOW_MOCK_LLM: ${APP_ALLOW_MOCK_LLM:-false}
     APP_MOCK_LLM_LATENCY_SECONDS: ${APP_MOCK_LLM_LATENCY_SECONDS:-0.2}
+  volumes:
+    - app-data:/data
 
 services:
   migrate:
@@ -22,6 +31,84 @@ services:
       postgres:
         condition: service_healthy
 
+  seed:
+    <<: *app
+    command: ["python", "-m", "app.kb.ingest", "/app/kb/corpus.jsonl"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Runs untrusted page JavaScript, so it gets no secrets and no route to the database, broker or
+  # API. It shares a network with the gateway, whose tools each require a signed token.
+  browser:
+    build:
+      context: .
+      dockerfile: browser_service/Dockerfile
+    image: agent-timelines-browser
+    command: ["uvicorn", "browser_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    networks: [web]
+    shm_size: 512m
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  searxng:
+    image: searxng/searxng:2026.11.2-cccbc9e15
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-local-only-not-exposed}
+    volumes:
+      - ./infra/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    networks: [web]
+
+  gateway:
+    <<: *app
+    command: ["uvicorn", "app.gateway.asgi:app", "--host", "0.0.0.0", "--port", "8100"]
+    networks: [default, web]
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      browser:
+        condition: service_healthy
+      searxng:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/healthz', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # Optional local model: `docker compose --profile ollama up`, with APP_OLLAMA_URL set.
+  ollama:
+    image: ollama/ollama:0.40.14
+    profiles: [ollama]
+    gpus: all
+    environment:
+      # Ollama's default of 4096 is tight once tool results are in the conversation.
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-8192}
+    volumes:
+      - ollama-models:/root/.ollama
+
+  ollama-pull:
+    image: ollama/ollama:0.40.14
+    profiles: [ollama]
+    environment:
+      OLLAMA_HOST: ollama:11434
+    command: ["pull", "${OLLAMA_MODEL:-qwen3:4b}"]
+    depends_on:
+      - ollama
+
   api:
     <<: *app
     command: ["uvicorn", "app.api.asgi:app", "--host", "0.0.0.0", "--port", "8000"]
@@ -30,6 +117,8 @@ services:
     depends_on: &app-deps
       migrate:
         condition: service_completed_successfully
+      gateway:
+        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
@@ -106,5 +195,10 @@ services:
       - "127.0.0.1:4317:4317"
       - "127.0.0.1:4318:4318"
 
+networks:
+  web:
+
 volumes:
   postgres-data:
+  app-data:
+  ollama-models:

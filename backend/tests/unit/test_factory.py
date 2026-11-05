@@ -1,6 +1,7 @@
 import pytest
 
 from app.adapters.celery_queue import CeleryStepQueue
+from app.adapters.mcp_tools import McpToolExecutor
 from app.adapters.memory import InlineQueue
 from app.adapters.redis_store import RedisLiveEvents
 from app.factory import ProfileNotAvailableError, build_adapters
@@ -16,6 +17,7 @@ def test_local_profile_builds_real_infrastructure_adapters() -> None:
     adapters = build_adapters(Settings(profile=Profile.LOCAL))
     assert isinstance(adapters.queue, CeleryStepQueue)
     assert isinstance(adapters.live_events, RedisLiveEvents)
+    assert isinstance(adapters.tools, McpToolExecutor)
     assert adapters.auth.authenticate(None) is not None
 
 

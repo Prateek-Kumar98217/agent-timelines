@@ -7,6 +7,7 @@ no loop: Postgres holds all state between steps, and no process stays alive whil
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, NotRequired, TypedDict
+from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
 
@@ -33,6 +34,7 @@ class StepState(TypedDict):
     action: str
     config: TreeConfig
     messages: Sequence[dict[str, Any]]
+    owner_id: NotRequired[UUID]
     force_final: NotRequired[bool]
     pending_tool: NotRequired[PendingTool]
     llm_response: NotRequired[LLMResponse]
@@ -47,6 +49,10 @@ def build_step_graph(llm: LLMProvider, tools: ToolExecutor) -> Any:
             messages=[{"role": "system", "content": config.system_prompt}, *state["messages"]],
             tools=[] if force_final else [tool.model_dump() for tool in config.tools],
             force_final=force_final,
+            provider=config.provider,
+            model=config.model,
+            temperature=config.temperature,
+            owner_id=state.get("owner_id"),
         )
         return {"llm_response": llm.complete(request)}
 

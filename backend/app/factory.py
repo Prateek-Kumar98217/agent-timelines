@@ -1,6 +1,8 @@
 """Builds the adapters for a profile. This is the only place that chooses between builds."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
 from app.adapters.memory import (
@@ -59,7 +61,10 @@ class Adapters:
     telemetry: Telemetry
 
 
-def build_adapters(settings: Settings) -> Adapters:
+KeyLookup = Callable[[Any, str], str | None]
+
+
+def build_adapters(settings: Settings, key_lookup: KeyLookup | None = None) -> Adapters:
     match settings.profile:
         case Profile.TEST:
             return Adapters(
@@ -75,31 +80,40 @@ def build_adapters(settings: Settings) -> Adapters:
                 telemetry=NoopTelemetry(),
             )
         case Profile.LOCAL:
-            return _build_local(settings)
+            return _build_local(settings, key_lookup or (lambda _user, _provider: None))
         case Profile.DEPLOYED:
             raise ProfileNotAvailableError(
                 f"adapters for the {settings.profile.value} profile are not implemented yet"
             )
 
 
-def _build_local(settings: Settings) -> Adapters:
+def _build_local(settings: Settings, key_lookup: KeyLookup) -> Adapters:
     import redis
 
     from app.adapters.celery_queue import CeleryStepQueue, make_celery
-    from app.adapters.mock import EchoTools, MockLLM
+    from app.adapters.embeddings import FastEmbedEmbedder
+    from app.adapters.llm import RoutedLLM
+    from app.adapters.mcp_tools import McpToolExecutor
+    from app.adapters.mock import MockLLM
     from app.adapters.redis_store import RedisCache, RedisLiveEvents, RedisRateLimiter
+    from app.adapters.web import LocalWeb
 
     client: redis.Redis = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+    mock = (
+        MockLLM(settings.mock_llm_latency_seconds, settings.mock_llm_tool_turns)
+        if settings.allow_mock_llm
+        else None
+    )
     return Adapters(
         queue=CeleryStepQueue(make_celery(settings)),
-        # Real providers, tools, embeddings and telemetry arrive in milestones 5 and 7.
-        llm=MockLLM(settings.mock_llm_latency_seconds, settings.mock_llm_tool_turns),
-        tools=EchoTools(settings.mock_tool_latency_seconds),
+        llm=RoutedLLM(key_lookup, settings.ollama_url, mock),
+        tools=McpToolExecutor(settings.gateway_url, settings.gateway_token_secret),
         cache=RedisCache(client),
         rate_limiter=RedisRateLimiter(client),
         auth=LocalAuthenticator(),
         live_events=RedisLiveEvents(settings.redis_url),
-        browser=FixtureBrowser(),
-        embedder=HashEmbedder(),
+        browser=LocalWeb(settings.searxng_url, settings.browser_url),
+        embedder=FastEmbedEmbedder(settings.embedding_model, settings.embedding_cache_dir),
+        # Real telemetry arrives in milestone 7.
         telemetry=NoopTelemetry(),
     )

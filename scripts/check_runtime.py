@@ -40,11 +40,9 @@ def check_langgraph() -> None:
 
 
 def check_llm_clients() -> None:
-    from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_openai import ChatOpenAI
 
     ChatOpenAI(model="x", api_key="k", base_url="http://localhost:1")
-    ChatGoogleGenerativeAI(model="x", google_api_key="k")
 
 
 def check_celery() -> None:

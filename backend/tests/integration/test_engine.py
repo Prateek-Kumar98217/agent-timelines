@@ -22,7 +22,9 @@ from app.ports import (
     LLMRequest,
     LLMResponse,
     ProviderRateLimitedError,
+    ProviderTransientError,
     StepMessage,
+    ToolOutcome,
     Usage,
 )
 from tests.helpers import CONFIG, Harness, text_reply, tool_reply
@@ -156,6 +158,49 @@ def test_rate_limit_waits_with_no_lease_and_retries_same_step(clean_db: SessionF
     assert retry.seq == message.seq
     assert run_step(harness.deps, retry) == StepOutcome.EXECUTED
     assert harness.branch(branch_id).status == BranchStatus.COMPLETED
+
+
+def test_transient_errors_retry_with_backoff_then_succeed(clean_db: SessionFactory) -> None:
+    harness = Harness(clean_db, [ProviderTransientError("503"), text_reply()])
+    branch_id = start(harness)
+
+    assert run_step(harness.deps, harness.queue.messages.popleft()) == StepOutcome.WAITING
+
+    assert harness.branch(branch_id).status == BranchStatus.WAITING
+    harness.clock.value += timedelta(seconds=4)
+    assert sweep(harness.deps).dispatched == 0
+    harness.clock.value += timedelta(seconds=1)
+    assert sweep(harness.deps).dispatched == 1
+    assert harness.drain() == [StepOutcome.EXECUTED]
+    assert harness.branch(branch_id).status == BranchStatus.COMPLETED
+
+
+def test_a_provider_that_stays_down_fails_the_branch(clean_db: SessionFactory) -> None:
+    harness = Harness(clean_db, [ProviderTransientError("503")] * 3)
+    branch_id = start(harness)
+    delays = []
+    for _ in range(3):
+        before = harness.clock.value
+        assert harness.drain() == [StepOutcome.WAITING]
+        while sweep(harness.deps).dispatched == 0:
+            harness.clock.value += timedelta(seconds=1)
+        delays.append((harness.clock.value - before).seconds)
+    assert delays == [5, 10, 20]
+    assert harness.drain() == [StepOutcome.FAILED]
+    branch = harness.branch(branch_id)
+    assert branch.status == BranchStatus.FAILED
+    assert "attempts" in (branch.status_reason or "")
+
+
+def test_large_tool_results_are_stored_truncated(clean_db: SessionFactory) -> None:
+    harness = Harness(clean_db, [tool_reply(), text_reply()])
+    harness.tools.handlers["search"] = lambda _c, _a: ToolOutcome("x" * 9000)
+    branch_id = start(harness)
+    harness.drain()
+    stored = harness.nodes(branch_id)[4].payload["content"]
+    assert stored.startswith("x" * 8000)
+    assert stored.endswith("[truncated: 1000 more characters]")
+    assert len(stored) < 8100
 
 
 def test_duplicate_delivery_creates_no_duplicate_nodes_or_calls(clean_db: SessionFactory) -> None:

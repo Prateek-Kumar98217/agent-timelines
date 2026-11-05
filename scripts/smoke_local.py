@@ -2,6 +2,7 @@
 
 Start it with short leases and slow steps, so failures land mid-step and recovery is quick:
     APP_LEASE_SECONDS=10 APP_MOCK_LLM_LATENCY_SECONDS=1 \
+    APP_ALLOW_MOCK_LLM=true APP_DEFAULT_PROVIDER=mock \
         docker compose up -d --build --wait api worker beat
     uv run python scripts/smoke_local.py
 """
@@ -151,6 +152,48 @@ def queue_messages() -> int:
     raise AssertionError(f"no steps queue in: {output}")
 
 
+def check_tools_through_gateway() -> None:
+    tree_id, branch = create("capital of Australia")
+    assert wait_finished(tree_id, [branch])[branch] == "completed"
+    nodes = nodes_of(tree(tree_id), branch)
+    result = next(n for n in nodes if n["type"] == "tool_result")
+    assert not result["payload"]["is_error"], result["payload"]
+    assert "Source: https://simple.wikipedia.org/" in result["payload"]["content"]
+    print("ok   kb_search through the MCP gateway returned cited results")
+
+
+def check_browser_isolation() -> None:
+    probe = (
+        "import socket\n"
+        "for host, port in [('postgres',5432),('redis',6379),('rabbitmq',5672),('api',8000)]:\n"
+        "    try:\n"
+        "        socket.create_connection((host,port),timeout=2).close(); print('REACHED',host)\n"
+        "    except OSError: pass\n"
+    )
+    output = compose("exec", "-T", "browser", "python", "-c", probe)
+    assert "REACHED" not in output, output
+    secrets = compose("exec", "-T", "browser", "env")
+    assert "SECRET" not in secrets
+    assert "DATABASE" not in secrets
+
+    # The gateway has to share a network with the browser, so a call from there must do nothing.
+    unsigned_call = (
+        "import json,urllib.request\n"
+        "body=json.dumps({'jsonrpc':'2.0','id':1,'method':'tools/call','params':"
+        "{'name':'calculator','arguments':{'expression':'6*7'}}}).encode()\n"
+        "request=urllib.request.Request('http://gateway:8100/mcp',data=body,headers={"
+        "'Content-Type':'application/json','Accept':'application/json, text/event-stream',"
+        "'MCP-Protocol-Version':'2025-06-18'})\n"
+        "try:\n"
+        "    print(urllib.request.urlopen(request,timeout=10).read().decode())\n"
+        "except Exception as error:\n"
+        "    print('refused',error)\n"
+    )
+    answer = compose("exec", "-T", "browser", "python", "-c", unsigned_call)
+    assert "42" not in answer, answer
+    print("ok   browser can't reach internal services, holds no secrets, can't run gateway tools")
+
+
 def check_waiting_uses_no_compute() -> None:
     tree_id, branch = create(f"Wait please [rate-limit:25] {time.time()}")
     wait_for_status(tree_id, branch, "waiting")
@@ -194,6 +237,8 @@ def check_broker_outage() -> None:
 def main() -> None:
     assert client.get("/healthz").json() == {"status": "ok"}
     check_run_forks_and_stream()
+    check_tools_through_gateway()
+    check_browser_isolation()
     check_waiting_uses_no_compute()
     check_worker_killed_mid_step()
     check_broker_outage()
