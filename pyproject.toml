@@ -17,11 +17,22 @@ target-version = "py314"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "ASYNC", "S"]
 
+[tool.ruff.lint.isort]
+known-third-party = ["alembic"]
+known-first-party = ["app", "tests"]
+
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S101"]
+"**/tests/**" = ["S101", "S608"]
+"**/alembic/versions/**" = ["E501", "RUF"]
 "scripts/**" = ["S101"]
 
 [tool.mypy]
 python_version = "3.14"
 strict = true
 files = ["backend/app", "backend/tests"]
+mypy_path = "backend"
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = ["pgvector.*", "jsonschema.*"]
+ignore_missing_imports = true
