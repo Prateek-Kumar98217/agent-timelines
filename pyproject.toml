@@ -24,6 +24,7 @@ known-first-party = ["app", "tests", "browser_service"]
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S608"]
 "**/alembic/versions/**" = ["E501", "RUF"]
+"kb/**" = ["E501", "RUF001"]
 "scripts/**" = ["S101", "S608", "S603", "S607", "S113"]
 
 [tool.mypy]
