@@ -202,6 +202,8 @@ class StepOutbox(Base):
         ForeignKey("branches.id", ondelete="CASCADE"), index=True
     )
     seq: Mapped[int] = mapped_column(Integer)
+    # Kept with the row, so a trace continues even after a long wait for a rate limit.
+    trace_context: Mapped[dict[str, str]] = mapped_column(JSONB, server_default=text("'{}'"))
     available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

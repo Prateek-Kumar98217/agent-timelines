@@ -6,7 +6,6 @@ import math
 import time
 from collections import defaultdict, deque
 from collections.abc import AsyncGenerator, Callable, Iterable, Iterator, Sequence
-from contextlib import AbstractContextManager, nullcontext
 from uuid import UUID
 
 from app.ports import (
@@ -14,6 +13,7 @@ from app.ports import (
     JsonDict,
     LLMRequest,
     LLMResponse,
+    NoopTelemetry,
     PageText,
     Principal,
     RateDecision,
@@ -23,6 +23,8 @@ from app.ports import (
     ToolOutcome,
     TreeEvent,
 )
+
+__all__ = ["NoopTelemetry"]
 
 Clock = Callable[[], float]
 
@@ -194,11 +196,3 @@ class HashEmbedder:
         vector = raw[: self.dimensions]
         norm = math.sqrt(sum(value * value for value in vector))
         return [value / norm for value in vector]
-
-
-class NoopTelemetry:
-    def span(self, name: str, attributes: JsonDict | None = None) -> AbstractContextManager[None]:
-        return nullcontext()
-
-    def record(self, metric: str, value: float, attributes: JsonDict | None = None) -> None:
-        return None

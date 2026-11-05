@@ -9,8 +9,14 @@ from app.domain.sweeper import sweep
 
 
 @shared_task(name=RUN_STEP_TASK)  # type: ignore[untyped-decorator]
-def run_step_task(branch_id: str, seq: int, trace_context: dict[str, str] | None = None) -> str:
-    return run_step(get_runtime().deps, step_message(branch_id, seq, trace_context)).value
+def run_step_task(
+    branch_id: str,
+    seq: int,
+    trace_context: dict[str, str] | None = None,
+    enqueued_at: float | None = None,
+) -> str:
+    message = step_message(branch_id, seq, trace_context, enqueued_at)
+    return run_step(get_runtime().deps, message).value
 
 
 @shared_task(name=SWEEP_TASK)  # type: ignore[untyped-decorator]

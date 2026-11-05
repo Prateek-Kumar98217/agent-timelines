@@ -19,8 +19,20 @@ from app.ports import StepMessage
 logger = logging.getLogger(__name__)
 
 
-def add_step(session: Session, branch_id: UUID, seq: int, available_at: datetime) -> UUID:
-    row = StepOutbox(id=uuid4(), branch_id=branch_id, seq=seq, available_at=available_at)
+def add_step(
+    session: Session,
+    branch_id: UUID,
+    seq: int,
+    available_at: datetime,
+    trace_context: dict[str, str] | None = None,
+) -> UUID:
+    row = StepOutbox(
+        id=uuid4(),
+        branch_id=branch_id,
+        seq=seq,
+        available_at=available_at,
+        trace_context=trace_context or {},
+    )
     session.add(row)
     return row.id
 
@@ -40,7 +52,9 @@ def dispatch(deps: EngineDeps, ids: list[UUID] | None = None, limit: int = 100) 
     with deps.session_factory() as session:
         rows = list(session.execute(query).scalars())
         for row in rows:
-            deps.queue.enqueue(StepMessage(row.branch_id, row.seq))
+            deps.queue.enqueue(
+                StepMessage(row.branch_id, row.seq, row.trace_context, now.timestamp())
+            )
             session.execute(
                 update(Branch).where(Branch.id == row.branch_id).values(last_dispatched_at=now)
             )

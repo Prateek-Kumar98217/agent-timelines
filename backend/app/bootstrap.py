@@ -41,6 +41,7 @@ def build_runtime(settings: Settings) -> Runtime:
         live_events=adapters.live_events,
         rate_limiter=adapters.rate_limiter,
         limits=make_limits(settings),
+        telemetry=adapters.telemetry,
         lease_seconds=settings.lease_seconds,
     )
     return Runtime(settings, adapters, session_factory, deps, key_store)

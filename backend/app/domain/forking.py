@@ -6,6 +6,7 @@ the path, so whatever the source branch does before or after can't leak in.
 """
 
 import json
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -79,6 +80,22 @@ def fork_from_edit(
     expires_at: datetime | None = None,
 ) -> UUID:
     """Create a branch with `edit` replacing the node. `allow_noop` is for evaluation runs."""
+    started = time.perf_counter()
+    with deps.telemetry.span("fork.create", {"node.id": str(node_id)}):
+        branch_id, node_type = _fork(deps, owner_id, node_id, edit, allow_noop, expires_at)
+    deps.telemetry.record("fork.duration", time.perf_counter() - started, {"node_type": node_type})
+    deps.telemetry.record("admission.accepted", 1, {"kind": "fork"})
+    return branch_id
+
+
+def _fork(
+    deps: EngineDeps,
+    owner_id: UUID,
+    node_id: UUID,
+    edit: dict[str, Any],
+    allow_noop: bool,
+    expires_at: datetime | None,
+) -> tuple[UUID, str]:
     with deps.session_factory() as session:
         source = session.get(Node, node_id)
         if source is None:
@@ -115,13 +132,18 @@ def fork_from_edit(
             )
         session.add(state)
         _copy_scratchpad(session, source.branch_id, branch.id, [node.id for node in before])
-        outbox_id = None if finished else add_step(session, branch.id, 0, deps.now())
+        outbox_id = (
+            None
+            if finished
+            else add_step(session, branch.id, 0, deps.now(), deps.telemetry.trace_context())
+        )
         session.commit()
         branch_id = branch.id
-    publish_all(deps.live_events, events)
+        node_type = source.type
+    publish_all(deps.live_events, events, deps.telemetry)
     if outbox_id is not None:
         dispatch_soon(deps, outbox_id)
-    return branch_id
+    return branch_id, node_type
 
 
 def _plan_edit(source: Node, edit: dict[str, Any], config: TreeConfig) -> _Plan:

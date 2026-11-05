@@ -10,9 +10,12 @@ from uuid import UUID, uuid4
 
 import pytest
 import uvicorn
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from app.adapters.mcp_tools import McpToolExecutor
 from app.adapters.memory import FixtureBrowser, HashEmbedder, MemoryCache
+from app.adapters.telemetry import OtelTelemetry
 from app.db.models import Branch, BranchStatus, Node, NodeType, Tree, User
 from app.db.session import SessionFactory
 from app.domain.config import AGENT_TOOLS
@@ -249,3 +252,39 @@ def test_every_declared_agent_tool_exists_on_the_server(tools: GatewayTools) -> 
         return {tool.name for tool in listed}
 
     assert asyncio.run(names()) == {tool.name for tool in AGENT_TOOLS}
+
+
+def test_a_trace_crosses_the_gateway_over_real_http(clean_db: SessionFactory) -> None:
+    spans = InMemorySpanExporter()
+    client_side = OtelTelemetry(
+        "worker", span_exporter=spans, metric_reader=InMemoryMetricReader(), export_logs=False
+    )
+    gateway_side = OtelTelemetry(
+        "gateway", span_exporter=spans, metric_reader=InMemoryMetricReader(), export_logs=False
+    )
+    tools = GatewayTools(
+        clean_db, MemoryCache(), CountingBrowser(), HashEmbedder(), telemetry=gateway_side
+    )
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    server = uvicorn.Server(
+        uvicorn.Config(build_app(tools, SECRET), host="127.0.0.1", port=port, log_level="error")
+    )
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    while not server.started:
+        time.sleep(0.02)
+    executor = McpToolExecutor(f"http://127.0.0.1:{port}/mcp", SECRET, telemetry=client_side)
+    try:
+        with client_side.span("tool.call"):
+            executor.execute(context(), "calculator", {"expression": "1 + 1"})
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10)
+    client_side.flush()
+    gateway_side.flush()
+    by_name = {span.name: span for span in spans.get_finished_spans()}
+    assert by_name["gateway.tool"].context.trace_id == by_name["tool.call"].context.trace_id
+    assert by_name["gateway.tool"].resource.attributes["service.name"] == "gateway"
+    assert SECRET not in by_name["gateway.tool"].to_json()
