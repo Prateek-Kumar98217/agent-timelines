@@ -14,7 +14,7 @@ tested, along with what closed it.
 | SearXNG depends on upstream engines that can rate-limit or block it, and their terms may restrict automated use | `web_search` can fail or get worse without warning; the agent sees a tool error | Accepted for local use, revisit before deployment |
 | Forks don't check who owns a node, and tree access isn't restricted | Any user could fork or read any tree | 6 |
 | Per-user branch, daily token and queue depth limits don't exist yet | Only per-branch turn and token limits apply | 6 |
-| A DNS answer can change between the browser's URL check and its request | A page could reach a private address, so the browser container gets no secrets and no route to internal services | Accepted |
+| A DNS answer can change between the browser's URL check and its request | A page could reach a private address, so the browser container gets no secrets and no route to the database, broker or API. It can reach the gateway, whose tools each require a signed token | Accepted |
 | Compare has no semantic similarity or convergence score | Divergence is only structural | 8 |
 | External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
 | The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
