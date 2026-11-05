@@ -288,7 +288,14 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
             require_branch(session, a, principal)
             require_branch(session, b, principal)
             try:
-                return ComparisonOut.model_validate(compare_branches(session, a, b))
+                comparison = compare_branches(
+                    session,
+                    a,
+                    b,
+                    rt.adapters.embedder,
+                    rt.settings.convergence_threshold,
+                )
+                return ComparisonOut.model_validate(comparison)
             except BranchesNotComparableError as exc:
                 raise HTTPException(404, str(exc)) from exc
 

@@ -99,6 +99,7 @@ class BranchSummaryOut(BaseModel):
     output_tokens: int
     final_text: str | None
     tool_calls: list[str]
+    scores: dict[str, float]
 
 
 class ComparisonOut(BaseModel):
@@ -110,3 +111,5 @@ class ComparisonOut(BaseModel):
     shared_nodes: int
     same_final_text: bool
     tool_call_overlap: float
+    final_similarity: float | None
+    converged: bool | None

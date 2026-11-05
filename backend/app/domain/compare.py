@@ -1,12 +1,20 @@
 """Compares two branches of a tree by their root-to-leaf paths."""
 
+import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Branch, BranchState, Node, NodeType
+from app.db.models import Branch, BranchScore, BranchState, Node, NodeType
 from app.domain.queries import path_to
+from app.ports import Embedder
+
+# Final answers at least this similar count as converged. Calibrated against no-op forks by
+# evals/edit_sensitivity.py; see docs/eval/edit_sensitivity.md.
+DEFAULT_CONVERGENCE_THRESHOLD = 0.9
 
 
 class BranchesNotComparableError(Exception):
@@ -22,6 +30,7 @@ class BranchSummary:
     output_tokens: int
     final_text: str | None
     tool_calls: list[str]
+    scores: dict[str, float]
 
 
 @dataclass(frozen=True)
@@ -32,9 +41,11 @@ class Comparison:
     shared_nodes: int
     same_final_text: bool
     tool_call_overlap: float
+    final_similarity: float | None
+    converged: bool | None
 
 
-def _summary(branch: Branch, path: list[Node]) -> BranchSummary:
+def _summary(session: Session, branch: Branch, path: list[Node]) -> BranchSummary:
     last = path[-1]
     final_text = None
     if last.type == NodeType.LLM_OUTPUT and last.payload.get("tool_call") is None:
@@ -51,6 +62,15 @@ def _summary(branch: Branch, path: list[Node]) -> BranchSummary:
             for node in path
             if node.type == NodeType.TOOL_CALL
         ],
+        scores=dict(
+            session.execute(
+                select(BranchScore.metric, BranchScore.score).where(
+                    BranchScore.branch_id == branch.id
+                )
+            )
+            .tuples()
+            .all()
+        ),
     )
 
 
@@ -66,7 +86,18 @@ def _overlap(a: list[str], b: list[str]) -> float:
     return len(set_a & set_b) / len(set_a | set_b)
 
 
-def compare_branches(session: Session, branch_a: UUID, branch_b: UUID) -> Comparison:
+def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
+    norm = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
+    return sum(x * y for x, y in zip(a, b, strict=True)) / norm if norm else 0.0
+
+
+def compare_branches(
+    session: Session,
+    branch_a: UUID,
+    branch_b: UUID,
+    embedder: Embedder | None = None,
+    threshold: float = DEFAULT_CONVERGENCE_THRESHOLD,
+) -> Comparison:
     a, b = session.get(Branch, branch_a), session.get(Branch, branch_b)
     if a is None or b is None or a.tree_id != b.tree_id:
         raise BranchesNotComparableError("both branches must exist in the same tree")
@@ -79,7 +110,14 @@ def compare_branches(session: Session, branch_a: UUID, branch_b: UUID) -> Compar
             break
         shared += 1
 
-    summary_a, summary_b = _summary(a, path_a), _summary(b, path_b)
+    summary_a, summary_b = _summary(session, a, path_a), _summary(session, b, path_b)
+    similarity = None
+    if embedder is not None and summary_a.final_text and summary_b.final_text:
+        if summary_a.final_text == summary_b.final_text:
+            similarity = 1.0
+        else:
+            first, second = embedder.embed([summary_a.final_text, summary_b.final_text])
+            similarity = cosine_similarity(first, second)
     return Comparison(
         a=summary_a,
         b=summary_b,
@@ -89,4 +127,6 @@ def compare_branches(session: Session, branch_a: UUID, branch_b: UUID) -> Compar
             summary_a.final_text is not None and summary_a.final_text == summary_b.final_text
         ),
         tool_call_overlap=_overlap(summary_a.tool_calls, summary_b.tool_calls),
+        final_similarity=similarity,
+        converged=None if similarity is None else similarity >= threshold,
     )
