@@ -9,7 +9,14 @@ from sqlalchemy import select
 from app.adapters.memory import ScriptedLLM
 from app.db.models import BranchStatus, NextAction, TreeEventRow
 from app.db.session import SessionFactory
-from app.domain.engine import EngineDeps, StepOutcome, cancel_branch, run_step, start_task
+from app.domain.engine import (
+    EngineDeps,
+    StepOutcome,
+    _claim,
+    cancel_branch,
+    run_step,
+    start_task,
+)
 from app.ports import (
     LLMRequest,
     LLMResponse,
@@ -253,6 +260,30 @@ def test_result_is_discarded_if_lease_expired_and_another_worker_took_over(
     nodes = harness.nodes(branch_id)
     assert [node.type for node in nodes] == ["root", "user_msg", "llm_output"]
     assert nodes[-1].payload["text"] == "second worker wins"
+
+
+def test_expired_worker_cannot_commit_over_the_worker_now_holding_the_lease(
+    clean_db: SessionFactory,
+) -> None:
+    llm = ControlledLLM(tool_reply())
+    harness = Harness(clean_db, llm)
+    branch_id = start(harness)
+    message, _ = harness.queue.messages.popleft()
+    claims: list[object] = []
+
+    def lease_expires_and_second_worker_claims() -> None:
+        harness.clock.value += timedelta(seconds=harness.deps.lease_seconds + 1)
+        claims.append(_claim(harness.deps, message))
+
+    llm.during = lease_expires_and_second_worker_claims
+
+    assert run_step(harness.deps, message) == StepOutcome.DISCARDED_STALE
+
+    assert harness.types(branch_id) == ["root", "user_msg"]
+    branch = harness.branch(branch_id)
+    assert branch.status == BranchStatus.RUNNING
+    assert branch.lease_owner is not None
+    assert branch.lease_owner == claims[0].lease_owner  # type: ignore[attr-defined]
 
 
 def test_cancel_only_affects_non_completed_branches(clean_db: SessionFactory) -> None:
