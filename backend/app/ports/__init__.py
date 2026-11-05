@@ -135,6 +135,10 @@ class RateDecision:
 class RateLimiter(Protocol):
     def consume(self, key: str, amount: int, limit: int, window_seconds: int) -> RateDecision: ...
 
+    def charge(self, key: str, amount: int, window_seconds: int) -> None:
+        """Record usage that already happened, even if it goes over a limit."""
+        ...
+
 
 # Auth
 

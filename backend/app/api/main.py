@@ -25,7 +25,7 @@ from app.api.schemas import (
 )
 from app.api.stream import event_stream, read_events
 from app.bootstrap import Runtime, get_runtime
-from app.db.models import Branch, Node, NodeType, Tree
+from app.db.models import Branch, Node, NodeType, Tree, User
 from app.domain.compare import BranchesNotComparableError, compare_branches
 from app.domain.config import AGENT_TOOLS, TreeConfig
 from app.domain.engine import cancel_branch, start_task
@@ -38,6 +38,7 @@ from app.domain.forking import (
     fork_from_edit,
 )
 from app.domain.keys import KeyStore
+from app.domain.limits import AdmissionRejectedError
 from app.ports import Principal
 
 MIN_KEY_CHARS = 8
@@ -149,6 +150,28 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
 
     PrincipalDep = Annotated[Principal, Depends(current_principal)]
 
+    @app.exception_handler(AdmissionRejectedError)
+    async def admission_rejected(request: Request, exc: AdmissionRejectedError) -> JSONResponse:
+        rt = current_runtime()
+        rt.adapters.telemetry.record("admission.rejected", 1, {"reason": exc.reason})
+        return JSONResponse(
+            {"detail": str(exc), "reason": exc.reason},
+            status_code=429,
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        )
+
+    def limit_writes(rt: RuntimeDep, principal: PrincipalDep) -> None:
+        with rt.session_factory() as session:
+            kind = session.get_one(User, principal.user_id).kind
+        allowed = rt.deps.limits.for_kind(kind).writes_per_minute
+        decision = rt.adapters.rate_limiter.consume(f"writes:{principal.user_id}", 1, allowed, 60)
+        if not decision.allowed:
+            raise AdmissionRejectedError(
+                "rate_limited", "too many requests", decision.retry_after_seconds
+            )
+
+    WriteLimit = Annotated[None, Depends(limit_writes)]
+
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
@@ -159,7 +182,7 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
 
     @app.put("/api/keys/{provider}")
     def save_key(
-        provider: str, body: SaveKey, rt: RuntimeDep, principal: PrincipalDep
+        provider: str, body: SaveKey, rt: RuntimeDep, principal: PrincipalDep, _limit: WriteLimit
     ) -> ProviderOut:
         store = keys_of(rt)
         if provider not in HOSTED_PROVIDERS:
@@ -176,7 +199,9 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
             raise HTTPException(404, "no key is saved for this provider")
 
     @app.post("/api/trees", status_code=201)
-    def create_tree(body: CreateTree, rt: RuntimeDep, principal: PrincipalDep) -> Created:
+    def create_tree(
+        body: CreateTree, rt: RuntimeDep, principal: PrincipalDep, _limit: WriteLimit
+    ) -> Created:
         task = body.task.strip()
         if not task:
             raise HTTPException(422, "the task can't be blank")

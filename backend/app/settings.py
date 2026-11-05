@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     gateway_url: str = "http://127.0.0.1:8100/mcp"
     gateway_token_secret: str = "local-development-only-secret-do-not-deploy"  # noqa: S105
     cache_ttl_seconds: int = 3600
+    local_active_branches: int = 5
+    local_tokens_per_day: int = 200_000
+    max_queued_branches: int = 100
     # Must outlast the slowest step: the LLM request timeout is 120 seconds.
     lease_seconds: int = 300
     embedding_model: str = "BAAI/bge-small-en-v1.5"

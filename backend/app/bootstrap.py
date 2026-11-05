@@ -1,6 +1,6 @@
 """Wires settings, adapters and the database into something runnable."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 
@@ -10,7 +10,9 @@ from app.db.models import User
 from app.db.session import SessionFactory, make_session_factory
 from app.domain.deps import EngineDeps
 from app.domain.keys import KeyStore, load_or_create_master_key
+from app.domain.limits import Limits
 from app.factory import LOCAL_USER_ID, Adapters, build_adapters
+from app.ports import PrincipalKind
 from app.settings import Profile, Settings, get_settings
 
 
@@ -37,9 +39,22 @@ def build_runtime(settings: Settings) -> Runtime:
         llm=adapters.llm,
         tools=adapters.tools,
         live_events=adapters.live_events,
+        rate_limiter=adapters.rate_limiter,
+        limits=make_limits(settings),
         lease_seconds=settings.lease_seconds,
     )
     return Runtime(settings, adapters, session_factory, deps, key_store)
+
+
+def make_limits(settings: Settings) -> Limits:
+    defaults = Limits()
+    table = dict(defaults.by_kind)
+    table[PrincipalKind.LOCAL.value] = replace(
+        table[PrincipalKind.LOCAL.value],
+        active_branches=settings.local_active_branches,
+        tokens_per_day=settings.local_tokens_per_day,
+    )
+    return Limits(table, settings.max_queued_branches)
 
 
 def ensure_local_user(session_factory: SessionFactory) -> None:

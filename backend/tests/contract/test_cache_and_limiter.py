@@ -90,3 +90,22 @@ def test_limiter_resets_next_window(limiter: RateLimiter, clock: FakeClock) -> N
 def test_limiter_keys_are_independent(limiter: RateLimiter) -> None:
     limiter.consume("a", 5, limit=5, window_seconds=60)
     assert limiter.consume("b", 5, limit=5, window_seconds=60).allowed
+
+
+def test_charge_counts_usage_even_past_the_limit(limiter: RateLimiter) -> None:
+    limiter.charge("u", 7, window_seconds=60)
+    decision = limiter.consume("u", 0, limit=5, window_seconds=60)
+    assert not decision.allowed
+    assert decision.remaining == 0
+
+
+def test_charge_adds_to_consumed_usage(limiter: RateLimiter) -> None:
+    limiter.consume("u", 2, limit=10, window_seconds=60)
+    limiter.charge("u", 3, window_seconds=60)
+    assert limiter.consume("u", 0, limit=10, window_seconds=60).remaining == 5
+
+
+def test_a_zero_consume_reads_without_changing_usage(limiter: RateLimiter) -> None:
+    limiter.consume("u", 4, limit=5, window_seconds=60)
+    limiter.consume("u", 0, limit=5, window_seconds=60)
+    assert limiter.consume("u", 1, limit=5, window_seconds=60).allowed

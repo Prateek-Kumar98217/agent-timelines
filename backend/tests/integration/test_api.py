@@ -11,7 +11,6 @@ from app.adapters.memory import (
     FixtureBrowser,
     HashEmbedder,
     MemoryCache,
-    MemoryRateLimiter,
     NoopTelemetry,
 )
 from app.adapters.mock import MockLLM
@@ -38,7 +37,7 @@ class Api:
             llm=harness.llm,
             tools=harness.tools,
             cache=MemoryCache(),
-            rate_limiter=MemoryRateLimiter(),
+            rate_limiter=harness.rate_limiter,
             auth=auth,
             live_events=harness.events,
             browser=FixtureBrowser(),

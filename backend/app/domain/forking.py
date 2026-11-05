@@ -26,6 +26,7 @@ from app.db.models import (
 from app.domain.config import TreeConfig
 from app.domain.deps import EngineDeps
 from app.domain.events import append_event, publish_all
+from app.domain.limits import admit_fork
 from app.domain.messages import Message, messages_from_path, required_message
 from app.domain.outbox import add_step, dispatch_soon
 from app.domain.queries import load_config, path_to
@@ -88,6 +89,13 @@ def fork_from_edit(
         if not allow_noop and _same_content(source, plan.node_payload):
             raise NoOpEditError("the edit doesn't change the node")
 
+        admit_fork(
+            session,
+            deps.limits,
+            deps.rate_limiter,
+            owner_id,
+            will_run=plan.next_action is not NextAction.NONE,
+        )
         before = path_to(session, source.parent_id)
         branch, state, events = _create_branch(session, source, plan, before, owner_id, expires_at)
         finished = plan.next_action is NextAction.NONE
