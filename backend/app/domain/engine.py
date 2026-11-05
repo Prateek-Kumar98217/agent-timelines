@@ -6,16 +6,15 @@ and workers can die, so the commit is discarded unless this worker still holds t
 same step. No process stays alive between steps, so a waiting branch uses no compute.
 """
 
-from collections.abc import Callable
-from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
-from app.agent.graph import PendingTool, build_step_graph
+from app.agent.graph import PendingTool
 from app.db.models import (
     NON_COMPLETED_STATUSES,
     Branch,
@@ -26,42 +25,22 @@ from app.db.models import (
     NodeType,
     Tree,
 )
-from app.db.session import SessionFactory
 from app.domain.config import TreeConfig
+from app.domain.deps import EngineDeps
 from app.domain.events import append_event, publish_all
 from app.domain.messages import Message, estimate_tokens, required_message
+from app.domain.outbox import add_step, dispatch_soon
 from app.domain.queries import load_config
 from app.ports import (
-    LiveEvents,
-    LLMProvider,
     LLMResponse,
     ProviderRateLimitedError,
     StepMessage,
-    StepQueue,
     ToolContext,
-    ToolExecutor,
     ToolOutcome,
     TreeEvent,
 )
 
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC)
-
-
-@dataclass
-class EngineDeps:
-    session_factory: SessionFactory
-    queue: StepQueue
-    llm: LLMProvider
-    tools: ToolExecutor
-    live_events: LiveEvents
-    now: Callable[[], datetime] = _utcnow
-    lease_seconds: int = 120
-    graph: Any = field(init=False)
-
-    def __post_init__(self) -> None:
-        self.graph = build_step_graph(self.llm, self.tools)
+__all__ = ["EngineDeps", "StepOutcome", "cancel_branch", "run_step", "start_task"]
 
 
 class StepOutcome(StrEnum):
@@ -144,9 +123,10 @@ def start_task(
             append_event(session, tree.id, "branch_created", branch_id=str(branch.id)),
             *_node_events(session, tree.id, [root, user_msg]),
         ]
+        outbox_id = add_step(session, branch.id, 0, deps.now())
         session.commit()
     publish_all(deps.live_events, events)
-    deps.queue.enqueue(StepMessage(branch.id, 0))
+    dispatch_soon(deps, outbox_id)
     return tree.id, branch.id
 
 
@@ -200,6 +180,13 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
         if branch.lease_until is not None and branch.lease_until > now:
             return StepOutcome.SKIPPED_LEASED
 
+        if branch.step_attempts >= deps.max_step_attempts:
+            reason = f"step abandoned after {branch.step_attempts} attempts"
+            events = _finish(session, branch, BranchStatus.FAILED, now, reason)
+            session.commit()
+            publish_all(deps.live_events, events)
+            return StepOutcome.FAILED
+
         state = session.get_one(BranchState, branch.id)
         config = load_config(session, branch.tree_id)
         action = NextAction(state.next_action)
@@ -224,6 +211,7 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
         lease_owner = uuid4().hex
         branch.lease_owner = lease_owner
         branch.lease_until = now + timedelta(seconds=deps.lease_seconds)
+        branch.step_attempts += 1
         branch.status = BranchStatus.RUNNING.value
         events = [_status_event(session, branch)]
         claim = _Claim(
@@ -328,7 +316,7 @@ def _commit_llm(
             events = _node_events(session, branch.tree_id, new_nodes)
             events.extend(_advance(session, branch))
             outcome = StepOutcome.EXECUTED
-            enqueue = True
+            outbox_id = add_step(session, branch.id, branch.step_seq, deps.now())
         else:
             state.messages = [*state.messages, required_message(llm_output)]
             state.head_node_id = llm_output.id
@@ -347,12 +335,11 @@ def _commit_llm(
                 reason = "the model returned no text and no tool call"
                 outcome = StepOutcome.FAILED
             events.extend(_finish(session, branch, final, deps.now(), reason))
-            enqueue = False
-        next_seq = branch.step_seq
+            outbox_id = None
         session.commit()
     publish_all(deps.live_events, events)
-    if enqueue:
-        deps.queue.enqueue(StepMessage(message.branch_id, next_seq))
+    if outbox_id is not None:
+        dispatch_soon(deps, outbox_id)
     return outcome
 
 
@@ -380,10 +367,10 @@ def _commit_tool(
         state.bypass_cache = False
         events = _node_events(session, branch.tree_id, [result])
         events.extend(_advance(session, branch))
-        next_seq = branch.step_seq
+        outbox_id = add_step(session, branch.id, branch.step_seq, deps.now())
         session.commit()
     publish_all(deps.live_events, events)
-    deps.queue.enqueue(StepMessage(message.branch_id, next_seq))
+    dispatch_soon(deps, outbox_id)
     return StepOutcome.EXECUTED
 
 
@@ -397,10 +384,12 @@ def _release_to_waiting(
         branch.status = BranchStatus.WAITING.value
         branch.lease_owner = None
         branch.lease_until = None
+        branch.step_attempts = 0
         events = [_status_event(session, branch)]
+        # The sweeper sends this once it's due. Until then only a database row exists.
+        add_step(session, branch.id, message.seq, deps.now() + timedelta(seconds=delay_seconds))
         session.commit()
     publish_all(deps.live_events, events)
-    deps.queue.enqueue(message, delay_seconds=delay_seconds)
     return StepOutcome.WAITING
 
 
@@ -445,6 +434,7 @@ def _add_node(
 
 def _advance(session: Session, branch: Branch) -> list[TreeEvent]:
     branch.step_seq += 1
+    branch.step_attempts = 0
     branch.status = BranchStatus.QUEUED.value
     branch.lease_owner = None
     branch.lease_until = None

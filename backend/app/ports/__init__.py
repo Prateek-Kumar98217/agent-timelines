@@ -27,7 +27,7 @@ class StepMessage:
 
 
 class StepQueue(Protocol):
-    def enqueue(self, message: StepMessage, delay_seconds: int = 0) -> None: ...
+    def enqueue(self, message: StepMessage) -> None: ...
 
     def depth(self) -> int:
         """Approximate number of messages waiting, used for admission control."""

@@ -31,10 +31,10 @@ class InlineQueue:
     """Holds messages until a test drains them, so ordering is explicit."""
 
     def __init__(self) -> None:
-        self.messages: deque[tuple[StepMessage, int]] = deque()
+        self.messages: deque[StepMessage] = deque()
 
-    def enqueue(self, message: StepMessage, delay_seconds: int = 0) -> None:
-        self.messages.append((message, delay_seconds))
+    def enqueue(self, message: StepMessage) -> None:
+        self.messages.append(message)
 
     def depth(self) -> int:
         return len(self.messages)
@@ -42,8 +42,7 @@ class InlineQueue:
     def drain(self) -> Iterator[StepMessage]:
         """Yield messages until empty, including any enqueued while draining."""
         while self.messages:
-            message, _delay = self.messages.popleft()
-            yield message
+            yield self.messages.popleft()
 
 
 class ScriptedLLM:

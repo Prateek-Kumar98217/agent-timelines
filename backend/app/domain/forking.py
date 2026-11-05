@@ -24,12 +24,13 @@ from app.db.models import (
     ScratchpadChunk,
 )
 from app.domain.config import TreeConfig
-from app.domain.engine import EngineDeps
+from app.domain.deps import EngineDeps
 from app.domain.events import append_event, publish_all
 from app.domain.messages import Message, messages_from_path, required_message
+from app.domain.outbox import add_step, dispatch_soon
 from app.domain.queries import load_config, path_to
 from app.domain.tools import tool_call_problem
-from app.ports import StepMessage, TreeEvent
+from app.ports import TreeEvent
 
 
 class ForkError(Exception):
@@ -105,11 +106,12 @@ def fork_from_edit(
             )
         session.add(state)
         _copy_scratchpad(session, source.branch_id, branch.id, [node.id for node in before])
+        outbox_id = None if finished else add_step(session, branch.id, 0, deps.now())
         session.commit()
         branch_id = branch.id
     publish_all(deps.live_events, events)
-    if not finished:
-        deps.queue.enqueue(StepMessage(branch_id, 0))
+    if outbox_id is not None:
+        dispatch_soon(deps, outbox_id)
     return branch_id
 
 
