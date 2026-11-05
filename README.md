@@ -30,7 +30,7 @@ To test failure recovery (killing a worker mid-step and stopping the broker), st
 short leases and slow steps, then run the smoke test:
 
 ```sh
-APP_LEASE_SECONDS=10 APP_MOCK_LLM_LATENCY_SECONDS=1 APP_ALLOW_MOCK_LLM=true APP_DEFAULT_PROVIDER=mock \
+APP_LEASE_SECONDS=10 APP_MOCK_LLM_LATENCY_SECONDS=1 APP_ALLOW_MOCK_LLM=true APP_DEFAULT_PROVIDER=mock APP_LOCAL_ACTIVE_BRANCHES=30 \
   docker compose up -d --build --wait api worker beat
 uv run python scripts/smoke_local.py
 ```

@@ -11,13 +11,13 @@ from app.adapters.memory import (
     FixtureBrowser,
     HashEmbedder,
     MemoryCache,
-    MemoryRateLimiter,
     NoopTelemetry,
 )
 from app.adapters.mock import MockLLM
 from app.api.main import choose_provider, create_app
 from app.api.stream import event_stream
 from app.bootstrap import Runtime
+from app.db.models import User
 from app.db.session import SessionFactory
 from app.domain.engine import start_task
 from app.domain.keys import KeyStore
@@ -37,7 +37,7 @@ class Api:
             llm=harness.llm,
             tools=harness.tools,
             cache=MemoryCache(),
-            rate_limiter=MemoryRateLimiter(),
+            rate_limiter=harness.rate_limiter,
             auth=auth,
             live_events=harness.events,
             browser=FixtureBrowser(),
@@ -361,3 +361,78 @@ def test_no_provider_at_all_explains_what_to_do(clean_db: SessionFactory) -> Non
         choose_provider(runtime, principal, None)
     assert error.value.status_code == 409
     assert "add an API key" in str(error.value.detail)
+
+
+@pytest.fixture
+def two_users(api: Api, clean_db: SessionFactory) -> tuple[Api, TestClient]:
+    """An API with a second signed-in user, who owns nothing yet."""
+    other = User(id=uuid4(), kind="local")
+    with clean_db() as session:
+        session.add(other)
+        session.commit()
+    api.adapters.auth.principals["other"] = Principal(other.id, PrincipalKind.USER)  # type: ignore[attr-defined]
+    client = TestClient(api.client.app, headers={"Authorization": "Bearer other"})
+    return api, client
+
+
+def test_another_user_gets_404_for_everything_about_a_tree(
+    two_users: tuple[Api, TestClient],
+) -> None:
+    api, other = two_users
+    tree = api.finished_tree()
+    tree_id, branch_id = tree["id"], tree["branches"][0]["id"]  # type: ignore[index]
+    user_node = node_of(tree, "user_msg")
+
+    assert other.get(f"/api/trees/{tree_id}").status_code == 404
+    assert other.get(f"/api/trees/{tree_id}/events").status_code == 404
+    assert other.get(f"/api/trees/{tree_id}/stream").status_code == 404
+    assert other.post(f"/api/branches/{branch_id}/cancel").status_code == 404
+    assert other.get("/api/compare", params={"a": branch_id, "b": branch_id}).status_code == 404
+    fork = other.post(f"/api/nodes/{user_node['id']}/fork", json={"edit": {"text": "mine now"}})
+    assert fork.status_code == 404
+    assert api.harness.queue.depth() == 0
+
+
+def test_a_refusal_looks_the_same_as_a_tree_that_does_not_exist(
+    two_users: tuple[Api, TestClient],
+) -> None:
+    api, other = two_users
+    tree_id, _ = api.start()
+    real = other.get(f"/api/trees/{tree_id}")
+    missing = other.get(f"/api/trees/{uuid4()}")
+    assert (real.status_code, real.json()) == (missing.status_code, missing.json())
+    api.harness.queue.messages.clear()
+
+
+def test_lists_and_keys_are_private_to_each_user(two_users: tuple[Api, TestClient]) -> None:
+    api, other = two_users
+    api.start("mine")
+    api.client.put("/api/keys/groq", json={"api_key": API_KEY})
+    assert other.get("/api/trees").json() == []
+    groq = next(item for item in other.get("/api/providers").json() if item["name"] == "groq")
+    assert groq["available"] is False
+    api.harness.queue.messages.clear()
+
+
+def test_the_owner_keeps_access(two_users: tuple[Api, TestClient]) -> None:
+    api, _ = two_users
+    tree = api.finished_tree()
+    assert api.client.get(f"/api/trees/{tree['id']}").status_code == 200
+
+
+def test_out_of_scope_tasks_are_refused_before_any_work(api: Api) -> None:
+    response = api.client.post("/api/trees", json={"task": "Write a Python script to sort files"})
+    assert response.status_code == 422
+    assert "not coding" in response.json()["detail"]
+    assert api.harness.queue.depth() == 0
+    assert api.client.get("/api/trees").json() == []
+
+
+def test_a_fork_cant_edit_the_task_into_something_out_of_scope(api: Api) -> None:
+    node = node_of(api.finished_tree(), "user_msg")
+    response = api.client.post(
+        f"/api/nodes/{node['id']}/fork", json={"edit": {"text": "Write a Python script instead"}}
+    )
+    assert response.status_code == 422
+    assert "not coding" in response.json()["detail"]
+    assert api.harness.queue.depth() == 0

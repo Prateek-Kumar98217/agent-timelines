@@ -119,6 +119,9 @@ class MemoryRateLimiter:
         self._counts[(key, window)] = used + amount
         return RateDecision(True, limit - used - amount)
 
+    def charge(self, key: str, amount: int, window_seconds: int) -> None:
+        self._counts[(key, int(self._clock() // window_seconds))] += amount
+
 
 class FakeAuthenticator:
     """Maps tokens to principals. Unknown or missing tokens are unauthenticated."""

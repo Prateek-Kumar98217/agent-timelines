@@ -7,7 +7,8 @@ from typing import Any
 
 from app.agent.graph import build_step_graph
 from app.db.session import SessionFactory
-from app.ports import LiveEvents, LLMProvider, StepQueue, ToolExecutor
+from app.domain.limits import Limits
+from app.ports import LiveEvents, LLMProvider, RateLimiter, StepQueue, ToolExecutor
 
 
 def _utcnow() -> datetime:
@@ -21,8 +22,10 @@ class EngineDeps:
     llm: LLMProvider
     tools: ToolExecutor
     live_events: LiveEvents
+    rate_limiter: RateLimiter
+    limits: Limits = field(default_factory=Limits)
     now: Callable[[], datetime] = _utcnow
-    lease_seconds: int = 120
+    lease_seconds: int = 300
     max_step_attempts: int = 3
     graph: Any = field(init=False)
 

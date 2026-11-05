@@ -294,6 +294,7 @@ def test_result_is_discarded_if_lease_expired_and_another_worker_took_over(
         llm=ScriptedLLM([text_reply("second worker wins")]),
         tools=harness.tools,
         live_events=harness.events,
+        rate_limiter=harness.rate_limiter,
         now=harness.clock,
     )
     branch_id = start(harness)

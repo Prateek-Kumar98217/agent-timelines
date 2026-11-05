@@ -49,6 +49,7 @@ class RedisRateLimiter:
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._consume = client.register_script(CONSUME_SCRIPT)
+        self._client = client
         self._prefix = prefix
         self._clock = clock
 
@@ -62,6 +63,13 @@ class RedisRateLimiter:
             return RateDecision(True, limit - int(used))
         retry_after = max(1, math.ceil((window + 1) * window_seconds - now))
         return RateDecision(False, max(0, limit - int(used)), retry_after)
+
+    def charge(self, key: str, amount: int, window_seconds: int) -> None:
+        window_key = f"{self._prefix}{key}:{int(self._clock() // window_seconds)}"
+        pipeline = self._client.pipeline()
+        pipeline.incrby(window_key, amount)
+        pipeline.expire(window_key, window_seconds * 2)
+        pipeline.execute()
 
 
 class RedisLiveEvents:

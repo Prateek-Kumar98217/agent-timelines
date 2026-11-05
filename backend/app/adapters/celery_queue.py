@@ -24,6 +24,8 @@ def make_celery(settings: Settings) -> Celery:
         task_acks_late=True,
         task_reject_on_worker_lost=True,
         worker_prefetch_multiplier=1,
+        # A stuck step is stopped before its lease expires, and the sweeper retries it.
+        task_time_limit=settings.lease_seconds,
         # RabbitMQ 4.3 refuses Celery's default transient non-exclusive control queues.
         control_queue_exclusive=True,
         event_queue_exclusive=True,

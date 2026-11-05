@@ -6,6 +6,7 @@ and workers can die, so the commit is discarded unless this worker still holds t
 same step. No process stays alive between steps, so a waiting branch uses no compute.
 """
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -24,10 +25,12 @@ from app.db.models import (
     Node,
     NodeType,
     Tree,
+    User,
 )
 from app.domain.config import TreeConfig
 from app.domain.deps import EngineDeps
 from app.domain.events import append_event, publish_all
+from app.domain.limits import DAY_SECONDS, admit_tree, daily_tokens_left, tokens_key
 from app.domain.messages import Message, estimate_tokens, required_message
 from app.domain.outbox import add_step, dispatch_soon
 from app.domain.queries import load_config
@@ -41,6 +44,8 @@ from app.ports import (
     ToolOutcome,
     TreeEvent,
 )
+
+logger = logging.getLogger(__name__)
 
 # FOR NO KEY UPDATE. A plain FOR UPDATE conflicts with the key-share locks that foreign key checks
 # take, which deadlocks with a fork that holds the tree's event lock and references this branch.
@@ -81,6 +86,7 @@ def start_task(
     """Create a tree with its main branch and queue the first step. Returns (tree_id, branch_id)."""
     config = config or TreeConfig()
     with deps.session_factory() as session:
+        admit_tree(session, deps.limits, deps.rate_limiter, owner_id)
         tree = Tree(id=uuid4(), owner_id=owner_id)
         branch = Branch(
             id=uuid4(),
@@ -208,7 +214,8 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
         action = NextAction(state.next_action)
 
         if action is NextAction.LLM:
-            stop = _budget_stop(branch, state, config)
+            owner = session.get_one(User, branch.owner_id)
+            stop = _budget_stop(deps, branch, state, config, owner)
             if stop is not None:
                 events = _finish(session, branch, stop[0], now, stop[1])
                 session.commit()
@@ -248,7 +255,7 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
 
 
 def _budget_stop(
-    branch: Branch, state: BranchState, config: TreeConfig
+    deps: EngineDeps, branch: Branch, state: BranchState, config: TreeConfig, owner: User
 ) -> tuple[BranchStatus, str] | None:
     if branch.turns_used >= config.turn_cap:
         return BranchStatus.CAPPED, f"turn cap of {config.turn_cap} reached"
@@ -258,6 +265,9 @@ def _budget_stop(
             BranchStatus.BUDGET_EXHAUSTED,
             f"token budget of {config.branch_token_budget} reached",
         )
+    daily = deps.limits.for_kind(owner.kind).tokens_per_day
+    if daily_tokens_left(deps.rate_limiter, owner.id, daily) <= 0:
+        return BranchStatus.BUDGET_EXHAUSTED, f"daily token limit of {daily} reached"
     return None
 
 
@@ -354,11 +364,21 @@ def _commit_llm(
                 outcome = StepOutcome.FAILED
             events.extend(_finish(session, branch, final, deps.now(), reason))
             outbox_id = None
+        owner_id = branch.owner_id
         session.commit()
+    _charge_tokens(deps, owner_id, response.usage.input_tokens + response.usage.output_tokens)
     publish_all(deps.live_events, events)
     if outbox_id is not None:
         dispatch_soon(deps, outbox_id)
     return outcome
+
+
+def _charge_tokens(deps: EngineDeps, owner_id: UUID, tokens: int) -> None:
+    """Failure here must not lose a committed step, so at worst this usage goes uncounted."""
+    try:
+        deps.rate_limiter.charge(tokens_key(owner_id), tokens, DAY_SECONDS)
+    except Exception:
+        logger.exception("couldn't record %s tokens for user %s", tokens, owner_id)
 
 
 def _commit_tool(
