@@ -30,6 +30,7 @@ from app.domain.limits import admit_fork
 from app.domain.messages import Message, messages_from_path, required_message
 from app.domain.outbox import add_step, dispatch_soon
 from app.domain.queries import load_config, path_to
+from app.domain.task_gate import task_problem
 from app.domain.tools import tool_call_problem
 from app.ports import TreeEvent
 
@@ -128,7 +129,11 @@ def _plan_edit(source: Node, edit: dict[str, Any], config: TreeConfig) -> _Plan:
         raise InvalidEditError(f"edits are limited to {config.max_edit_chars} characters")
     match source.type:
         case NodeType.USER_MSG:
-            return _Plan({"text": _required_text(edit, "text")}, NextAction.LLM)
+            text = _required_text(edit, "text")
+            problem = task_problem(text)
+            if problem:
+                raise InvalidEditError(problem)
+            return _Plan({"text": text}, NextAction.LLM)
         case NodeType.LLM_OUTPUT:
             return _plan_llm_output(source, edit, config)
         case NodeType.TOOL_CALL:

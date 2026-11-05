@@ -39,6 +39,7 @@ from app.domain.forking import (
 )
 from app.domain.keys import KeyStore
 from app.domain.limits import AdmissionRejectedError
+from app.domain.task_gate import task_problem
 from app.ports import Principal
 
 MIN_KEY_CHARS = 8
@@ -205,6 +206,9 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         task = body.task.strip()
         if not task:
             raise HTTPException(422, "the task can't be blank")
+        problem = task_problem(task)
+        if problem:
+            raise HTTPException(422, problem)
         provider = choose_provider(rt, principal, body.provider)
         config = TreeConfig(tools=AGENT_TOOLS, provider=provider, model=body.model)
         tree_id, branch_id = start_task(rt.deps, principal.user_id, task, config)

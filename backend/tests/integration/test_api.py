@@ -418,3 +418,21 @@ def test_the_owner_keeps_access(two_users: tuple[Api, TestClient]) -> None:
     api, _ = two_users
     tree = api.finished_tree()
     assert api.client.get(f"/api/trees/{tree['id']}").status_code == 200
+
+
+def test_out_of_scope_tasks_are_refused_before_any_work(api: Api) -> None:
+    response = api.client.post("/api/trees", json={"task": "Write a Python script to sort files"})
+    assert response.status_code == 422
+    assert "not coding" in response.json()["detail"]
+    assert api.harness.queue.depth() == 0
+    assert api.client.get("/api/trees").json() == []
+
+
+def test_a_fork_cant_edit_the_task_into_something_out_of_scope(api: Api) -> None:
+    node = node_of(api.finished_tree(), "user_msg")
+    response = api.client.post(
+        f"/api/nodes/{node['id']}/fork", json={"edit": {"text": "Write a Python script instead"}}
+    )
+    assert response.status_code == 422
+    assert "not coding" in response.json()["detail"]
+    assert api.harness.queue.depth() == 0
