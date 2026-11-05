@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "agent-timelines-backend",
+    "agent-timelines-browser",
     "agent-timelines-workspace",
 ]
 
@@ -33,7 +34,6 @@ dependencies = [
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
     { name = "pgvector" },
-    { name = "playwright" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
     { name = "redis" },
@@ -71,7 +71,6 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
     { name = "pgvector" },
-    { name = "playwright" },
     { name = "psycopg", extras = ["binary"] },
     { name = "pydantic-settings" },
     { name = "redis" },
@@ -89,6 +88,37 @@ dev = [
 eval = [
     { name = "deepeval" },
     { name = "locust" },
+]
+
+[[package]]
+name = "agent-timelines-browser"
+version = "0.1.0"
+source = { editable = "browser_service" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "playwright" },
+    { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi" },
+    { name = "playwright" },
+    { name = "uvicorn" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
 ]
 
 [[package]]

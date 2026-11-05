@@ -11,9 +11,10 @@ tested, along with what closed it.
 | Limitation | Risk until closed | Closes in |
 |---|---|---|
 | The local build runs a mock LLM, mock tools and hash embeddings | Runs show the platform working, not real agent behaviour | 5 |
-| DuckDuckGo's terms and its behaviour from AWS IPs are unverified | `web_search` may not be usable as designed | 5 (terms), deferred (AWS) |
+| DuckDuckGo refuses automated requests, even from a home IP (403 or its bot check) | `web_search` on DuckDuckGo doesn't work; it must not be disguised to get past this | 5 |
 | Forks don't check who owns a node, and tree access isn't restricted | Any user could fork or read any tree | 6 |
 | Per-user branch, daily token and queue depth limits don't exist yet | Only per-branch turn and token limits apply | 6 |
+| A DNS answer can change between the browser's URL check and its request | A page could reach a private address, so the browser container gets no secrets and no route to internal services | Accepted |
 | Compare has no semantic similarity or convergence score | Divergence is only structural | 8 |
 | External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
 | The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
