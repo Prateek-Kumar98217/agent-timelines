@@ -17,6 +17,13 @@ class Settings(BaseSettings):
 
     profile: Profile = Profile.LOCAL
     database_url: str = "postgresql+psycopg://timelines:timelines-local@127.0.0.1:5432/timelines"
+    redis_url: str = "redis://127.0.0.1:6379/0"
+    rabbitmq_url: str = "amqp://guest:guest@127.0.0.1:5672//"
+    lease_seconds: int = 120
+    sweep_interval_seconds: float = 2.0
+    mock_llm_latency_seconds: float = 0.2
+    mock_tool_latency_seconds: float = 0.05
+    mock_llm_tool_turns: int = 2
 
 
 @lru_cache

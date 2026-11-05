@@ -25,6 +25,19 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 20
+      redis:
+        image: redis:8.8.4-alpine
+        ports:
+          - 6379:6379
+      rabbitmq:
+        image: rabbitmq:4.3.7-management-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 8s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10

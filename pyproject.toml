@@ -34,5 +34,5 @@ mypy_path = "backend"
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "jsonschema.*"]
+module = ["pgvector.*", "jsonschema.*", "celery.*"]
 ignore_missing_imports = true
