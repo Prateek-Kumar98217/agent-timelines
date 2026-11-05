@@ -94,6 +94,9 @@ services:
     image: ollama/ollama:0.40.14
     profiles: [ollama]
     gpus: all
+    environment:
+      # Ollama's default of 4096 is tight once tool results are in the conversation.
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-8192}
     volumes:
       - ollama-models:/root/.ollama
 
