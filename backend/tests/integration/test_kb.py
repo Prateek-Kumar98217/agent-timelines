@@ -97,9 +97,17 @@ def test_vector_search_finds_meaning_without_shared_words(clean_db: SessionFacto
 def test_hybrid_combines_both_and_respects_the_limit(clean_db: SessionFactory) -> None:
     embedder = LookupEmbedder()
     ingest(clean_db, embedder, DOCS)
+    hybrid = SearchMode.HYBRID
+    assert search_kb(clean_db, embedder, "the red world", mode=hybrid)[0].title == "Mars"
+    assert search_kb(clean_db, embedder, "fourth planet", mode=hybrid)[0].title == "Mars"
+    assert len(search_kb(clean_db, embedder, "Canberra Mars", limit=1, mode=hybrid)) == 1
+
+
+def test_vector_is_the_default_mode(clean_db: SessionFactory) -> None:
+    embedder = LookupEmbedder()
+    ingest(clean_db, embedder, DOCS)
     assert search_kb(clean_db, embedder, "the red world")[0].title == "Mars"
-    assert search_kb(clean_db, embedder, "fourth planet")[0].title == "Mars"
-    assert len(search_kb(clean_db, embedder, "Canberra Mars", limit=1)) == 1
+    assert [hit.title for hit in search_kb(clean_db, embedder, "city", limit=1)] == ["Canberra"]
 
 
 @pytest.mark.parametrize("mode", list(SearchMode))

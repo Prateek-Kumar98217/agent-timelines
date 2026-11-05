@@ -23,6 +23,8 @@ known-first-party = ["app", "tests", "browser_service"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S105", "S106", "S608"]
+"evals/**" = ["S101", "S311"]
+"loadtest/**" = ["S311"]
 "**/alembic/versions/**" = ["E501", "RUF"]
 "kb/**" = ["E501", "RUF001"]
 "scripts/**" = ["S101", "S608", "S603", "S607", "S113"]
@@ -35,5 +37,5 @@ mypy_path = "backend:browser_service"
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "jsonschema.*", "celery.*", "fastembed.*"]
+module = ["pgvector.*", "jsonschema.*", "celery.*", "fastembed.*", "kb_labels"]
 ignore_missing_imports = true
