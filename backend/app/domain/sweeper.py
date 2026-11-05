@@ -46,7 +46,7 @@ def sweep(deps: EngineDeps) -> SweepResult:
         stranded = session.execute(
             select(Branch.id, Branch.step_seq)
             .where(or_(expired_running, lost_message), ~has_outbox_row)
-            .with_for_update(skip_locked=True)
+            .with_for_update(skip_locked=True, key_share=True)
         ).all()
         for branch_id, step_seq in stranded:
             add_step(session, branch_id, step_seq, now)

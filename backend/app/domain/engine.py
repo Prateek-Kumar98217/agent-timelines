@@ -40,6 +40,10 @@ from app.ports import (
     TreeEvent,
 )
 
+# FOR NO KEY UPDATE. A plain FOR UPDATE conflicts with the key-share locks that foreign key checks
+# take, which deadlocks with a fork that holds the tree's event lock and references this branch.
+LOCK_BRANCH = {"key_share": True}
+
 __all__ = ["EngineDeps", "StepOutcome", "cancel_branch", "run_step", "start_task"]
 
 
@@ -133,7 +137,7 @@ def start_task(
 def cancel_branch(deps: EngineDeps, branch_id: UUID) -> bool:
     """Cancel a non-completed branch. A step in progress has its result discarded."""
     with deps.session_factory() as session:
-        branch = session.get(Branch, branch_id, with_for_update=True)
+        branch = session.get(Branch, branch_id, with_for_update=LOCK_BRANCH)
         if branch is None or BranchStatus(branch.status) not in NON_COMPLETED_STATUSES:
             return False
         events = _finish(session, branch, BranchStatus.CANCELLED, deps.now(), "cancelled by user")
@@ -171,7 +175,7 @@ def run_step(deps: EngineDeps, message: StepMessage) -> StepOutcome:
 
 def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
     with deps.session_factory() as session:
-        branch = session.get(Branch, message.branch_id, with_for_update=True)
+        branch = session.get(Branch, message.branch_id, with_for_update=LOCK_BRANCH)
         if branch is None or BranchStatus(branch.status) not in NON_COMPLETED_STATUSES:
             return StepOutcome.SKIPPED_FINISHED
         if message.seq != branch.step_seq:
@@ -245,7 +249,7 @@ def _budget_stop(
 
 def _locked_if_current(session: Session, message: StepMessage, claim: _Claim) -> Branch | None:
     """Lock the branch, or return None if this worker's result must be thrown away."""
-    branch = session.get(Branch, message.branch_id, with_for_update=True)
+    branch = session.get(Branch, message.branch_id, with_for_update=LOCK_BRANCH)
     if (
         branch is None
         or branch.status != BranchStatus.RUNNING.value
