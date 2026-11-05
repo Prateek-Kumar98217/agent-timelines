@@ -156,7 +156,7 @@ def check_deepeval() -> None:
 def check_locust() -> None:
     # Locust monkey-patches the process on import, so it needs a process of its own.
     code = "from locust import HttpUser"
-    subprocess.run([sys.executable, "-W", "ignore", "-c", code], check=True, timeout=60)  # noqa: S603
+    subprocess.run([sys.executable, "-W", "ignore", "-c", code], check=True, timeout=60)
 
 
 def main() -> int:

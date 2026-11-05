@@ -41,8 +41,9 @@ def make_celery(settings: Settings) -> Celery:
 
 
 class CeleryStepQueue:
-    def __init__(self, app: Celery) -> None:
+    def __init__(self, app: Celery, queue: str = STEP_QUEUE) -> None:
         self._app = app
+        self._queue = queue
 
     def enqueue(self, message: StepMessage) -> None:
         # No retries here: on failure the outbox row stays, and the sweeper sends it later.
@@ -50,12 +51,13 @@ class CeleryStepQueue:
             RUN_STEP_TASK,
             args=[str(message.branch_id), message.seq],
             kwargs={"trace_context": message.trace_context},
+            queue=self._queue,
             retry=False,
         )
 
     def depth(self) -> int:
         with self._app.connection_for_read() as connection:
-            declared = connection.default_channel.queue_declare(queue=STEP_QUEUE, passive=True)
+            declared = connection.default_channel.queue_declare(queue=self._queue, passive=True)
             return int(declared.message_count)
 
 

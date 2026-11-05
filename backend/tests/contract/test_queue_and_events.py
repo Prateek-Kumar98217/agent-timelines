@@ -6,9 +6,8 @@ from collections.abc import Iterator
 from uuid import uuid4
 
 import pytest
-from celery import Celery
 
-from app.adapters.celery_queue import STEP_QUEUE, CeleryStepQueue, make_celery
+from app.adapters.celery_queue import CeleryStepQueue, make_celery
 from app.adapters.memory import InlineQueue, MemoryLiveEvents
 from app.adapters.redis_store import RedisLiveEvents
 from app.ports import LiveEvents, StepMessage, StepQueue, TreeEvent
@@ -16,21 +15,22 @@ from app.settings import Settings
 
 
 @pytest.fixture
-def celery_app() -> Iterator[Celery]:
+def celery_queue() -> Iterator[CeleryStepQueue]:
+    """Use a throwaway queue, so tests never touch a running worker or its real queue."""
     app = make_celery(Settings())
+    name = f"test-steps-{uuid4().hex}"
     with app.connection_for_write() as connection:
-        connection.default_channel.queue_declare(queue=STEP_QUEUE, durable=True, auto_delete=False)
-        connection.default_channel.queue_purge(STEP_QUEUE)
-    yield app
+        connection.default_channel.queue_declare(queue=name, durable=True, auto_delete=False)
+    yield CeleryStepQueue(app, queue=name)
     with app.connection_for_write() as connection:
-        connection.default_channel.queue_purge(STEP_QUEUE)
+        connection.default_channel.queue_delete(name)
 
 
 @pytest.fixture(params=["memory", "celery"])
 def queue(request: pytest.FixtureRequest) -> StepQueue:
     if request.param == "memory":
         return InlineQueue()
-    return CeleryStepQueue(request.getfixturevalue("celery_app"))
+    return request.getfixturevalue("celery_queue")  # type: ignore[no-any-return]
 
 
 @pytest.fixture(params=["memory", "redis"])
