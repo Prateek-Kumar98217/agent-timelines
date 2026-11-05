@@ -53,6 +53,9 @@ class ScriptedLLM:
         self._responses = deque(responses)
         self.requests: list[LLMRequest] = []
 
+    def add(self, response: LLMResponse | Exception) -> None:
+        self._responses.append(response)
+
     def complete(self, request: LLMRequest) -> LLMResponse:
         self.requests.append(request)
         if not self._responses:
