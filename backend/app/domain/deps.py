@@ -22,7 +22,7 @@ class EngineDeps:
     tools: ToolExecutor
     live_events: LiveEvents
     now: Callable[[], datetime] = _utcnow
-    lease_seconds: int = 120
+    lease_seconds: int = 300
     max_step_attempts: int = 3
     graph: Any = field(init=False)
 
