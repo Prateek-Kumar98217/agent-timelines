@@ -10,7 +10,9 @@ tested, along with what closed it.
 
 | Limitation | Risk until closed | Closes in |
 |---|---|---|
-| The local build runs a mock LLM, mock tools and hash embeddings | Runs show the platform working, not real agent behaviour | 5 |
+| Groq, Gemini and OpenRouter are tested against a local stub, never a live key | A provider quirk could surface on first use, and their default model names are unverified | When a key is added |
+| Hidden model thinking counts toward the token budget, and small models may use most of it | Branches can run out of budget sooner than their visible text suggests | 8 |
+| Short tasks can finish in 2 turns, under the 4 to 12 turn target | Forks have fewer nodes to diverge from | 8 |
 | SearXNG depends on upstream engines that can rate-limit or block it, and their terms may restrict automated use | `web_search` can fail or get worse without warning; the agent sees a tool error | Accepted for local use, revisit before deployment |
 | Forks don't check who owns a node, and tree access isn't restricted | Any user could fork or read any tree | 6 |
 | Per-user branch, daily token and queue depth limits don't exist yet | Only per-branch turn and token limits apply | 6 |
@@ -27,5 +29,6 @@ tested, along with what closed it.
 | Concurrency tests only simulated two workers | Real-thread tests against Postgres, which found and fixed a worker and fork deadlock | 3 |
 | LLM errors other than rate limits failed the branch straight away | Transient errors retry with backoff, then fail at the attempt limit | 5 |
 | Tool results were stored at full size | Results are truncated to a per-tree limit with a visible marker | 5 |
+| The local build ran only a mock LLM, mock tools and hash embeddings | Real tools through the gateway, real embeddings, and a local model on the GPU, verified end to end including a real fork | 5 |
 | DuckDuckGo refused automated requests, even from a home IP | `web_search` uses a private SearXNG instance with DuckDuckGo disabled; refusals were not bypassed | 5 |
 | A crash between saving a step and queuing the next stranded the branch | Transactional outbox and sweeper, checked by killing a worker and stopping the broker on the real stack | 3 |
