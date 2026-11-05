@@ -74,6 +74,10 @@ class ProviderRateLimitedError(Exception):
         self.retry_after_seconds = retry_after_seconds
 
 
+class ProviderTransientError(Exception):
+    """A brief provider failure, such as a timeout or a 5xx. The step is retried a few times."""
+
+
 class LLMProvider(Protocol):
     def complete(self, request: LLMRequest) -> LLMResponse: ...
 

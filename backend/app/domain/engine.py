@@ -34,6 +34,7 @@ from app.domain.queries import load_config
 from app.ports import (
     LLMResponse,
     ProviderRateLimitedError,
+    ProviderTransientError,
     StepMessage,
     ToolContext,
     ToolOutcome,
@@ -43,6 +44,7 @@ from app.ports import (
 # FOR NO KEY UPDATE. A plain FOR UPDATE conflicts with the key-share locks that foreign key checks
 # take, which deadlocks with a fork that holds the tree's event lock and references this branch.
 LOCK_BRANCH = {"key_share": True}
+TRANSIENT_RETRY_SECONDS = 5
 
 __all__ = ["EngineDeps", "StepOutcome", "cancel_branch", "run_step", "start_task"]
 
@@ -68,6 +70,7 @@ class _Claim:
     head_node_id: UUID
     turns_used: int
     pending_tool: PendingTool | None
+    attempt: int
 
 
 def start_task(
@@ -165,6 +168,10 @@ def run_step(deps: EngineDeps, message: StepMessage) -> StepOutcome:
         result = deps.graph.invoke(state)
     except ProviderRateLimitedError as exc:
         return _release_to_waiting(deps, message, claim, exc.retry_after_seconds)
+    except ProviderTransientError:
+        # Attempts aren't reset, so a provider that stays down fails the branch at the limit.
+        delay = TRANSIENT_RETRY_SECONDS * 2 ** (claim.attempt - 1)
+        return _release_to_waiting(deps, message, claim, delay, reset_attempts=False)
     except Exception as exc:
         return _fail(deps, message, claim, f"{type(exc).__name__}: {exc}")
 
@@ -227,6 +234,7 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
             head_node_id=state.head_node_id,
             turns_used=branch.turns_used,
             pending_tool=pending_tool,
+            attempt=branch.step_attempts,
         )
         session.commit()
     publish_all(deps.live_events, events)
@@ -361,7 +369,11 @@ def _commit_tool(
             branch,
             claim.head_node_id,
             NodeType.TOOL_RESULT,
-            {"name": pending.name, "content": outcome.content, "is_error": outcome.is_error},
+            {
+                "name": pending.name,
+                "content": _truncate(outcome.content, claim.config.max_tool_result_chars),
+                "is_error": outcome.is_error,
+            },
             claim.turns_used,
         )
         state = session.get_one(BranchState, branch.id)
@@ -378,8 +390,19 @@ def _commit_tool(
     return StepOutcome.EXECUTED
 
 
+def _truncate(content: str, limit: int) -> str:
+    if len(content) <= limit:
+        return content
+    return f"{content[:limit]}\n[truncated: {len(content) - limit} more characters]"
+
+
 def _release_to_waiting(
-    deps: EngineDeps, message: StepMessage, claim: _Claim, delay_seconds: int
+    deps: EngineDeps,
+    message: StepMessage,
+    claim: _Claim,
+    delay_seconds: int,
+    *,
+    reset_attempts: bool = True,
 ) -> StepOutcome:
     with deps.session_factory() as session:
         branch = _locked_if_current(session, message, claim)
@@ -388,7 +411,8 @@ def _release_to_waiting(
         branch.status = BranchStatus.WAITING.value
         branch.lease_owner = None
         branch.lease_until = None
-        branch.step_attempts = 0
+        if reset_attempts:
+            branch.step_attempts = 0
         events = [_status_event(session, branch)]
         # The sweeper sends this once it's due. Until then only a database row exists.
         add_step(session, branch.id, message.seq, deps.now() + timedelta(seconds=delay_seconds))
