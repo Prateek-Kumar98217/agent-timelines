@@ -1,4 +1,3 @@
-import asyncio
 from uuid import uuid4
 
 import pytest
@@ -8,7 +7,6 @@ from app.adapters.memory import (
     FixtureBrowser,
     HashEmbedder,
     InlineQueue,
-    MemoryLiveEvents,
     ScriptedLLM,
 )
 from app.ports import (
@@ -19,7 +17,6 @@ from app.ports import (
     PrincipalKind,
     ProviderRateLimitedError,
     StepMessage,
-    TreeEvent,
     Usage,
 )
 
@@ -72,16 +69,3 @@ def test_fake_authenticator_rejects_missing_and_unknown_tokens() -> None:
     assert auth.authenticate("good") == principal
     assert auth.authenticate("bad") is None
     assert auth.authenticate(None) is None
-
-
-async def test_live_events_reach_subscribers_of_that_tree_only() -> None:
-    events = MemoryLiveEvents()
-    tree, other = uuid4(), uuid4()
-    subscription = events.subscribe(tree)
-    task = asyncio.ensure_future(anext(subscription))
-    await asyncio.sleep(0)
-    events.publish(TreeEvent(other, 1, "ignored", {}))
-    events.publish(TreeEvent(tree, 2, "seen", {}))
-    received = await asyncio.wait_for(task, timeout=1)
-    assert received.seq == 2
-    await subscription.aclose()

@@ -202,7 +202,7 @@ def test_fork_of_a_running_branch_leaves_it_running_unchanged(clean_db: SessionF
         clean_db, [tool_reply("src"), text_reply("child answer"), text_reply("source answer")]
     )
     _, source = start_task(harness.deps, harness.user.id, "the task", CONFIG)
-    first, _ = harness.queue.messages.popleft()
+    first = harness.queue.messages.popleft()
     assert run_step(harness.deps, first) == StepOutcome.EXECUTED
     source_messages = list(harness.state(source).messages)
     source_seq = harness.branch(source).step_seq
@@ -225,9 +225,9 @@ def test_fork_of_a_running_branch_leaves_it_running_unchanged(clean_db: SessionF
 def test_source_activity_after_the_fork_never_reaches_the_child(clean_db: SessionFactory) -> None:
     harness = Harness(clean_db, [tool_reply("first"), tool_reply("child"), text_reply("c")])
     _, source = start_task(harness.deps, harness.user.id, "the task", CONFIG)
-    message, _ = harness.queue.messages.popleft()
+    message = harness.queue.messages.popleft()
     run_step(harness.deps, message)
-    call_step, _ = harness.queue.messages.popleft()
+    call_step = harness.queue.messages.popleft()
     run_step(harness.deps, call_step)
     source_nodes = harness.nodes(source)
     result = source_nodes[-1]

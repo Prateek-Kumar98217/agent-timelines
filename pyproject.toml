@@ -24,7 +24,7 @@ known-first-party = ["app", "tests"]
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S608"]
 "**/alembic/versions/**" = ["E501", "RUF"]
-"scripts/**" = ["S101", "S608"]
+"scripts/**" = ["S101", "S608", "S603", "S607", "S113"]
 
 [tool.mypy]
 python_version = "3.14"
@@ -34,5 +34,5 @@ mypy_path = "backend"
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "jsonschema.*"]
+module = ["pgvector.*", "jsonschema.*", "celery.*"]
 ignore_missing_imports = true

@@ -26,3 +26,48 @@ class TreeConfig(BaseModel):
 
     def tool(self, name: str) -> ToolSpec | None:
         return next((tool for tool in self.tools if tool.name == name), None)
+
+
+def _schema(required: list[str], **properties: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
+    }
+
+
+_TEXT = {"type": "string", "minLength": 1, "maxLength": 2000}
+
+AGENT_TOOLS = [
+    ToolSpec(
+        name="web_search",
+        description="Search the web. Returns titles, URLs and snippets.",
+        parameters=_schema(["query"], query=_TEXT),
+    ),
+    ToolSpec(
+        name="page_fetch",
+        description="Read the text of a web page by URL.",
+        parameters=_schema(["url"], url=_TEXT),
+    ),
+    ToolSpec(
+        name="kb_search",
+        description="Search the main knowledge base.",
+        parameters=_schema(["query"], query=_TEXT),
+    ),
+    ToolSpec(
+        name="calculator",
+        description="Evaluate an arithmetic expression.",
+        parameters=_schema(["expression"], expression=_TEXT),
+    ),
+    ToolSpec(
+        name="scratchpad_write",
+        description="Save a note to this branch's scratchpad.",
+        parameters=_schema(["text"], text=_TEXT),
+    ),
+    ToolSpec(
+        name="scratchpad_search",
+        description="Search the notes saved in this branch's scratchpad.",
+        parameters=_schema(["query"], query=_TEXT),
+    ),
+]

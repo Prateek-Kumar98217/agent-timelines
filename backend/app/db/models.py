@@ -112,6 +112,9 @@ class Branch(Base):
     # The step a queue message must name to be accepted; older messages are duplicates.
     step_seq: Mapped[int] = mapped_column(Integer, default=0)
     next_node_seq: Mapped[int] = mapped_column(Integer, default=0)
+    # Claims of the current step. A step that keeps killing workers is failed, not retried forever.
+    step_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    last_dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     lease_owner: Mapped[str | None] = mapped_column(String(64))
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
@@ -165,6 +168,23 @@ class BranchState(Base):
     next_action: Mapped[str] = mapped_column(String(8))
     # True when the pending tool call was edited, so it must run live and skip the cache read.
     bypass_cache: Mapped[bool] = mapped_column(default=False)
+
+
+class StepOutbox(Base):
+    """Steps due to be sent to the queue, written in the same transaction as the work before them.
+
+    A row with a future `available_at` is how a branch waits: nothing holds it in memory.
+    """
+
+    __tablename__ = "step_outbox"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    branch_id: Mapped[UUID] = mapped_column(
+        ForeignKey("branches.id", ondelete="CASCADE"), index=True
+    )
+    seq: Mapped[int] = mapped_column(Integer)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ScratchpadChunk(Base):

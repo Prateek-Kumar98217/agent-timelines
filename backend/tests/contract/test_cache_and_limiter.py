@@ -1,9 +1,16 @@
-"""Behaviour every cache and rate limiter must share. Later adapters join these fixtures."""
+"""Behaviour every cache and rate limiter must share, on each build's implementation."""
+
+import time
+from collections.abc import Callable
+from uuid import uuid4
 
 import pytest
+import redis
 
 from app.adapters.memory import MemoryCache, MemoryRateLimiter
+from app.adapters.redis_store import RedisCache, RedisRateLimiter
 from app.ports import Cache, RateLimiter
+from app.settings import Settings
 
 
 class FakeClock:
@@ -15,29 +22,48 @@ class FakeClock:
 
 
 @pytest.fixture
+def client() -> redis.Redis:
+    return redis.Redis.from_url(Settings().redis_url, decode_responses=True)
+
+
+@pytest.fixture
 def clock() -> FakeClock:
     return FakeClock()
 
 
-@pytest.fixture
-def cache(clock: FakeClock) -> Cache:
-    return MemoryCache(clock)
+@pytest.fixture(params=["memory", "redis"])
+def cache_and_advance(
+    request: pytest.FixtureRequest, clock: FakeClock, client: redis.Redis
+) -> tuple[Cache, Callable[[float], None]]:
+    """A cache and a way to move its time. Redis expiry is real, so that one waits."""
+    if request.param == "memory":
+
+        def advance(seconds: float) -> None:
+            clock.now += seconds
+
+        return MemoryCache(clock), advance
+    return RedisCache(client, prefix=f"test:{uuid4().hex}:"), time.sleep
 
 
-@pytest.fixture
-def limiter(clock: FakeClock) -> RateLimiter:
-    return MemoryRateLimiter(clock)
+@pytest.fixture(params=["memory", "redis"])
+def limiter(request: pytest.FixtureRequest, clock: FakeClock, client: redis.Redis) -> RateLimiter:
+    if request.param == "memory":
+        return MemoryRateLimiter(clock)
+    return RedisRateLimiter(client, prefix=f"test:{uuid4().hex}:", clock=clock)
 
 
-def test_cache_returns_value_until_ttl(cache: Cache, clock: FakeClock) -> None:
-    cache.set("k", "v", ttl_seconds=10)
+def test_cache_returns_value_until_ttl(
+    cache_and_advance: tuple[Cache, Callable[[float], None]],
+) -> None:
+    cache, advance = cache_and_advance
+    cache.set("k", "v", ttl_seconds=1)
     assert cache.get("k") == "v"
-    clock.now += 10
+    advance(1.1)
     assert cache.get("k") is None
 
 
-def test_cache_miss_is_none(cache: Cache) -> None:
-    assert cache.get("missing") is None
+def test_cache_miss_is_none(cache_and_advance: tuple[Cache, Callable[[float], None]]) -> None:
+    assert cache_and_advance[0].get("missing") is None
 
 
 def test_limiter_allows_up_to_limit_then_refuses(limiter: RateLimiter) -> None:
@@ -46,6 +72,7 @@ def test_limiter_allows_up_to_limit_then_refuses(limiter: RateLimiter) -> None:
     refused = limiter.consume("u", 1, limit=5, window_seconds=60)
     assert not refused.allowed
     assert refused.retry_after_seconds > 0
+    assert refused.remaining == 0
 
 
 def test_refused_request_consumes_nothing(limiter: RateLimiter) -> None:

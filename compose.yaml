@@ -1,8 +1,67 @@
-# Local build infrastructure. Application services join this file in later milestones.
-# Ports bind to localhost only, and the default credentials are for local use.
+# The local build. Ports bind to localhost only, and the default credentials are for local use.
 name: agent-timelines
 
+x-app: &app
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+  image: agent-timelines-backend
+  environment: &app-env
+    APP_PROFILE: local
+    APP_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-timelines}:${POSTGRES_PASSWORD:-timelines-local}@postgres:5432/${POSTGRES_DB:-timelines}
+    APP_REDIS_URL: redis://redis:6379/0
+    APP_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
+    APP_LEASE_SECONDS: ${APP_LEASE_SECONDS:-120}
+    APP_MOCK_LLM_LATENCY_SECONDS: ${APP_MOCK_LLM_LATENCY_SECONDS:-0.2}
+
 services:
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: ["uvicorn", "app.api.asgi:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on: &app-deps
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "-c", "4", "-l", "INFO"]
+    depends_on: *app-deps
+
+  beat:
+    <<: *app
+    command:
+      - celery
+      - -A
+      - app.worker.celery_app
+      - beat
+      - -l
+      - WARNING
+      - -s
+      - /tmp/celerybeat-schedule
+    depends_on: *app-deps
+
   postgres:
     image: pgvector/pgvector:pg18
     environment:

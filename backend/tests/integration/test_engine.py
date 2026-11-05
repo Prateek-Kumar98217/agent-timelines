@@ -17,6 +17,7 @@ from app.domain.engine import (
     run_step,
     start_task,
 )
+from app.domain.sweeper import sweep
 from app.ports import (
     LLMRequest,
     LLMResponse,
@@ -72,7 +73,7 @@ def test_llm_receives_the_tool_result_on_the_next_turn(clean_db: SessionFactory)
 def test_each_message_runs_one_step_and_nothing_stays_running(clean_db: SessionFactory) -> None:
     harness = Harness(clean_db, [tool_reply(), text_reply()])
     branch_id = start(harness)
-    message, _ = harness.queue.messages.popleft()
+    message = harness.queue.messages.popleft()
     assert run_step(harness.deps, message) == StepOutcome.EXECUTED
     assert harness.types(branch_id)[-1] == "tool_call"
     branch = harness.branch(branch_id)
@@ -136,7 +137,7 @@ def test_llm_error_fails_the_branch_with_a_reason(clean_db: SessionFactory) -> N
 def test_rate_limit_waits_with_no_lease_and_retries_same_step(clean_db: SessionFactory) -> None:
     harness = Harness(clean_db, [ProviderRateLimitedError(30), text_reply()])
     branch_id = start(harness)
-    message, _ = harness.queue.messages.popleft()
+    message = harness.queue.messages.popleft()
 
     assert run_step(harness.deps, message) == StepOutcome.WAITING
 
@@ -144,8 +145,14 @@ def test_rate_limit_waits_with_no_lease_and_retries_same_step(clean_db: SessionF
     assert branch.status == BranchStatus.WAITING
     assert branch.lease_until is None
     assert harness.types(branch_id) == ["root", "user_msg"]
-    retry, delay = harness.queue.messages.popleft()
-    assert delay == 30
+    assert harness.queue.depth() == 0
+
+    assert sweep(harness.deps).dispatched == 0
+    assert harness.queue.depth() == 0
+
+    harness.clock.value += timedelta(seconds=30)
+    assert sweep(harness.deps).dispatched == 1
+    retry = harness.queue.messages.popleft()
     assert retry.seq == message.seq
     assert run_step(harness.deps, retry) == StepOutcome.EXECUTED
     assert harness.branch(branch_id).status == BranchStatus.COMPLETED
@@ -154,7 +161,7 @@ def test_rate_limit_waits_with_no_lease_and_retries_same_step(clean_db: SessionF
 def test_duplicate_delivery_creates_no_duplicate_nodes_or_calls(clean_db: SessionFactory) -> None:
     harness = Harness(clean_db, [tool_reply(), text_reply()])
     branch_id = start(harness)
-    message, _ = harness.queue.messages.popleft()
+    message = harness.queue.messages.popleft()
     assert run_step(harness.deps, message) == StepOutcome.EXECUTED
     before = harness.types(branch_id)
 
@@ -198,7 +205,7 @@ def test_crashed_worker_step_is_blocked_by_lease_then_resumes(clean_db: SessionF
     llm.during = _die
     harness = Harness(clean_db, llm)
     branch_id = start(harness)
-    message, _ = harness.queue.messages.popleft()
+    message = harness.queue.messages.popleft()
 
     with pytest.raises(WorkerDied):
         run_step(harness.deps, message)
@@ -217,7 +224,7 @@ def test_result_is_discarded_if_branch_was_cancelled_mid_step(clean_db: SessionF
     llm = ControlledLLM(tool_reply())
     harness = Harness(clean_db, llm)
     branch_id = start(harness)
-    message, _ = harness.queue.messages.popleft()
+    message = harness.queue.messages.popleft()
 
     def cancel() -> None:
         cancel_branch(harness.deps, branch_id)
@@ -245,7 +252,7 @@ def test_result_is_discarded_if_lease_expired_and_another_worker_took_over(
         now=harness.clock,
     )
     branch_id = start(harness)
-    message, _ = harness.queue.messages.popleft()
+    message = harness.queue.messages.popleft()
     second: list[StepOutcome] = []
 
     def lease_expires_and_second_worker_runs() -> None:
@@ -268,7 +275,7 @@ def test_expired_worker_cannot_commit_over_the_worker_now_holding_the_lease(
     llm = ControlledLLM(tool_reply())
     harness = Harness(clean_db, llm)
     branch_id = start(harness)
-    message, _ = harness.queue.messages.popleft()
+    message = harness.queue.messages.popleft()
     claims: list[object] = []
 
     def lease_expires_and_second_worker_claims() -> None:
