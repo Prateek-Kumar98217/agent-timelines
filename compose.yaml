@@ -1,0 +1,51 @@
+# Local build infrastructure. Application services join this file in later milestones.
+# Ports bind to localhost only, and the default credentials are for local use.
+name: agent-timelines
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-timelines}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-timelines-local}
+      POSTGRES_DB: ${POSTGRES_DB:-timelines}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8.8.4-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4.3.7-management-alpine
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 8s
+      retries: 20
+
+  observability:
+    image: grafana/otel-lgtm:0.39.0
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+
+volumes:
+  postgres-data:
