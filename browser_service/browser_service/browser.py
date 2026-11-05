@@ -1,4 +1,4 @@
-"""Fetches pages and search results with headless Chromium.
+"""Reads web pages with headless Chromium.
 
 Pages are untrusted and run JavaScript, so each request gets a fresh context, and every network
 request a page makes passes the URL policy, including each hop of a redirect. Network isolation of
@@ -7,10 +7,8 @@ the service itself is the second layer, since a DNS answer can change after a ch
 
 import asyncio
 import re
-import time
-from collections.abc import Callable
 from dataclasses import dataclass
-from urllib.parse import parse_qs, quote_plus, urljoin, urlsplit
+from urllib.parse import urljoin
 
 from playwright.async_api import (
     Browser,
@@ -25,7 +23,6 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from browser_service.policy import UrlPolicy, public_web_only
 
-SEARCH_URL = "https://html.duckduckgo.com/html/?q={query}"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) Chrome/146 Safari/537.36 agent-timelines/0.1"
 BLOCKED_RESOURCES = {"image", "media", "font"}
 MAX_RESPONSE_BYTES = 5_000_000
@@ -33,7 +30,6 @@ MAX_REDIRECTS = 5
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 MAX_TEXT_CHARS = 20_000
 CONTENT_SELECTORS = ("main", "article", "[role=main]", "body")
-CHALLENGE_MARKERS = (".anomaly-modal__title", "form#challenge-form", ".challenge-form")
 
 
 class UrlRefusedError(Exception):
@@ -41,14 +37,7 @@ class UrlRefusedError(Exception):
 
 
 class PageUnavailableError(Exception):
-    """The page or search couldn't be read: a block, CAPTCHA, timeout or network failure."""
-
-
-@dataclass(frozen=True)
-class SearchHit:
-    title: str
-    url: str
-    snippet: str
+    """The page couldn't be read: a block, timeout or network failure."""
 
 
 @dataclass(frozen=True)
@@ -58,33 +47,16 @@ class Page:
     text: str
 
 
-@dataclass(frozen=True)
-class Politeness:
-    """Limits on search traffic, so this tool stays a light user of the search engine."""
-
-    min_search_interval_seconds: float = 2.0
-    challenge_cooldown_seconds: float = 300.0
-
-
 class BrowserService:
     def __init__(
         self,
         policy: UrlPolicy = public_web_only,
-        search_url: str = SEARCH_URL,
         concurrency: int = 2,
         timeout_seconds: float = 15.0,
-        politeness: Politeness | None = None,
-        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._policy = policy
-        self._search_url = search_url
         self._slots = asyncio.Semaphore(concurrency)
         self._timeout_ms = timeout_seconds * 1000
-        self._politeness = politeness or Politeness()
-        self._clock = clock
-        self._search_lock = asyncio.Lock()
-        self._last_search = float("-inf")
-        self._cooldown_until = float("-inf")
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self.refused_requests: list[str] = []
@@ -107,20 +79,6 @@ class BrowserService:
             raise UrlRefusedError(problem)
         async with self._slots:
             return await self._read_page(url)
-
-    async def search(self, query: str, limit: int) -> list[SearchHit]:
-        now = self._clock()
-        if now < self._cooldown_until:
-            wait = int(self._cooldown_until - now)
-            raise PageUnavailableError(f"search is paused for {wait}s after a challenge")
-        async with self._search_lock:
-            wait_for = self._last_search + self._politeness.min_search_interval_seconds
-            delay = wait_for - self._clock()
-            if delay > 0:
-                await asyncio.sleep(delay)
-            self._last_search = self._clock()
-            async with self._slots:
-                return await self._read_results(query, limit)
 
     async def _new_context(self) -> tuple[BrowserContext, dict[str, str]]:
         if self._browser is None:
@@ -190,33 +148,6 @@ class BrowserService:
         finally:
             await context.close()
 
-    async def _read_results(self, query: str, limit: int) -> list[SearchHit]:
-        context, _final_urls = await self._new_context()
-        try:
-            page = await context.new_page()
-            url = self._search_url.format(query=quote_plus(query))
-            response = await page.goto(url, wait_until="domcontentloaded")
-            status = response.status if response else 0
-            challenged = status in (202, 403, 429) or await self._has_challenge(page)
-            if challenged:
-                self._cooldown_until = self._clock() + self._politeness.challenge_cooldown_seconds
-                raise PageUnavailableError("the search engine asked for a challenge")
-            if status >= 400:
-                raise PageUnavailableError(f"the search engine returned {status}")
-            return await _parse_results(page, limit)
-        except PlaywrightTimeoutError as exc:
-            raise PageUnavailableError("the search timed out") from exc
-        except Error as exc:
-            raise PageUnavailableError(f"couldn't load results: {_first_line(exc)}") from exc
-        finally:
-            await context.close()
-
-    async def _has_challenge(self, page: PlaywrightPage) -> bool:
-        for selector in CHALLENGE_MARKERS:
-            if await page.locator(selector).count():
-                return True
-        return False
-
     async def _main_text(self, page: PlaywrightPage) -> str:
         for selector in CONTENT_SELECTORS:
             locator = page.locator(selector)
@@ -225,33 +156,6 @@ class BrowserService:
                 if text.strip():
                     return _clean_text(text)
         return ""
-
-
-async def _parse_results(page: PlaywrightPage, limit: int) -> list[SearchHit]:
-    hits: list[SearchHit] = []
-    for result in await page.locator(".result:not(.result--ad)").all():
-        if len(hits) >= limit:
-            break
-        link = result.locator("a.result__a").first
-        if not await link.count():
-            continue
-        href = await link.get_attribute("href") or ""
-        snippet = result.locator(".result__snippet").first
-        hits.append(
-            SearchHit(
-                title=(await link.inner_text()).strip(),
-                url=_real_url(href, page.url),
-                snippet=(await snippet.inner_text()).strip() if await snippet.count() else "",
-            )
-        )
-    return hits
-
-
-def _real_url(href: str, base: str) -> str:
-    """Result links go through a redirector, with the real address in `uddg`."""
-    absolute = urljoin(base, href)
-    target = parse_qs(urlsplit(absolute).query).get("uddg")
-    return target[0] if target else absolute
 
 
 def _clean_text(text: str) -> str:

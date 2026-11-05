@@ -15,11 +15,6 @@ class FetchRequest(BaseModel):
     url: str = Field(min_length=1, max_length=2000)
 
 
-class SearchRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=500)
-    limit: int = Field(default=5, ge=1, le=10)
-
-
 def create_app(service: BrowserService | None = None) -> FastAPI:
     browser = service or BrowserService()
 
@@ -41,13 +36,6 @@ def create_app(service: BrowserService | None = None) -> FastAPI:
             return asdict(await browser.fetch(body.url))
         except UrlRefusedError as exc:
             raise HTTPException(403, str(exc)) from exc
-        except PageUnavailableError as exc:
-            raise HTTPException(503, str(exc)) from exc
-
-    @app.post("/search")
-    async def search(body: SearchRequest) -> list[dict[str, Any]]:
-        try:
-            return [asdict(hit) for hit in await browser.search(body.query, body.limit)]
         except PageUnavailableError as exc:
             raise HTTPException(503, str(exc)) from exc
 

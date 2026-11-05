@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://timelines:timelines-local@127.0.0.1:5432/timelines"
     redis_url: str = "redis://127.0.0.1:6379/0"
     rabbitmq_url: str = "amqp://guest:guest@127.0.0.1:5672//"
+    searxng_url: str = "http://127.0.0.1:18080"
+    browser_url: str = "http://127.0.0.1:18081"
+    gateway_url: str = "http://127.0.0.1:8100/mcp"
+    gateway_token_secret: str = "local-development-only-secret-do-not-deploy"  # noqa: S105
+    cache_ttl_seconds: int = 3600
     lease_seconds: int = 120
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_cache_dir: str | None = None
