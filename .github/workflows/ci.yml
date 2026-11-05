@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "milestone/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked --all-packages --group dev --python 3.14
+      - name: Lint
+        run: uv run --no-sync ruff check .
+      - name: Format
+        run: uv run --no-sync ruff format --check .
+      - name: Types
+        run: uv run --no-sync mypy
+      - name: Tests
+        run: uv run --no-sync pytest backend -q
+
+  runtime-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked --all-packages --all-groups --python 3.14
+      - name: Install Chromium
+        run: uv run --no-sync playwright install --with-deps chromium
+      - name: Check dependencies at runtime
+        run: uv run --no-sync python -W ignore scripts/check_runtime.py --with-model --with-browser
