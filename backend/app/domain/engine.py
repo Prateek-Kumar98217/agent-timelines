@@ -34,6 +34,7 @@ from app.domain.queries import load_config
 from app.ports import (
     LLMResponse,
     ProviderRateLimitedError,
+    ProviderRefusedError,
     ProviderTransientError,
     StepMessage,
     ToolContext,
@@ -64,6 +65,7 @@ class StepOutcome(StrEnum):
 class _Claim:
     lease_owner: str
     tree_id: UUID
+    owner_id: UUID
     config: TreeConfig
     action: NextAction
     messages: list[Message]
@@ -160,6 +162,7 @@ def run_step(deps: EngineDeps, message: StepMessage) -> StepOutcome:
         "messages": claim.messages,
     }
     if claim.action is NextAction.LLM:
+        state["owner_id"] = claim.owner_id
         state["force_final"] = claim.turns_used + 1 >= claim.config.turn_cap
     else:
         state["pending_tool"] = claim.pending_tool
@@ -172,6 +175,8 @@ def run_step(deps: EngineDeps, message: StepMessage) -> StepOutcome:
         # Attempts aren't reset, so a provider that stays down fails the branch at the limit.
         delay = TRANSIENT_RETRY_SECONDS * 2 ** (claim.attempt - 1)
         return _release_to_waiting(deps, message, claim, delay, reset_attempts=False)
+    except ProviderRefusedError as exc:
+        return _fail(deps, message, claim, str(exc))
     except Exception as exc:
         return _fail(deps, message, claim, f"{type(exc).__name__}: {exc}")
 
@@ -228,6 +233,7 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
         claim = _Claim(
             lease_owner=lease_owner,
             tree_id=branch.tree_id,
+            owner_id=branch.owner_id,
             config=config,
             action=action,
             messages=list(state.messages),

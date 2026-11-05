@@ -2,12 +2,14 @@
 
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 from sqlalchemy.dialects.postgresql import insert
 
 from app.db.models import User
 from app.db.session import SessionFactory, make_session_factory
 from app.domain.deps import EngineDeps
+from app.domain.keys import KeyStore, load_or_create_master_key
 from app.factory import LOCAL_USER_ID, Adapters, build_adapters
 from app.settings import Profile, Settings, get_settings
 
@@ -18,13 +20,17 @@ class Runtime:
     adapters: Adapters
     session_factory: SessionFactory
     deps: EngineDeps
+    key_store: KeyStore | None = None
 
 
 def build_runtime(settings: Settings) -> Runtime:
-    adapters = build_adapters(settings)
     session_factory = make_session_factory(settings.database_url)
+    key_store = None
     if settings.profile is Profile.LOCAL:
         ensure_local_user(session_factory)
+        master_key = load_or_create_master_key(Path(settings.master_key_file))
+        key_store = KeyStore(session_factory, master_key)
+    adapters = build_adapters(settings, key_store.get if key_store else None)
     deps = EngineDeps(
         session_factory=session_factory,
         queue=adapters.queue,
@@ -33,7 +39,7 @@ def build_runtime(settings: Settings) -> Runtime:
         live_events=adapters.live_events,
         lease_seconds=settings.lease_seconds,
     )
-    return Runtime(settings, adapters, session_factory, deps)
+    return Runtime(settings, adapters, session_factory, deps, key_store)
 
 
 def ensure_local_user(session_factory: SessionFactory) -> None:

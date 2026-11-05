@@ -4,9 +4,11 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import func, select
 
+from app.adapters.llm import HOSTED_PROVIDERS, OLLAMA_DEFAULT_MODEL
 from app.api.schemas import (
     BranchOut,
     ComparisonOut,
@@ -15,6 +17,8 @@ from app.api.schemas import (
     EventOut,
     ForkRequest,
     NodeOut,
+    ProviderOut,
+    SaveKey,
     TreeOut,
     TreeSummary,
 )
@@ -32,12 +36,86 @@ from app.domain.forking import (
     NoTurnsLeftError,
     fork_from_edit,
 )
+from app.domain.keys import KeyStore
 from app.ports import Principal
+
+MIN_KEY_CHARS = 8
+MAX_KEY_CHARS = 500
+
+
+def keys_of(rt: Runtime) -> KeyStore:
+    if rt.key_store is None:
+        raise HTTPException(404, "this build doesn't store API keys")
+    return rt.key_store
+
+
+def list_providers(rt: Runtime, principal: Principal) -> list[ProviderOut]:
+    saved = (
+        {key.provider: key.last_four for key in rt.key_store.list(principal.user_id)}
+        if rt.key_store
+        else {}
+    )
+    listed = [
+        ProviderOut(
+            name=info.name,
+            needs_key=True,
+            available=info.name in saved,
+            default_model=info.default_model,
+            key_last_four=saved.get(info.name),
+        )
+        for info in HOSTED_PROVIDERS.values()
+    ]
+    if rt.settings.ollama_url:
+        listed.append(
+            ProviderOut(
+                name="ollama",
+                needs_key=False,
+                available=True,
+                default_model=OLLAMA_DEFAULT_MODEL,
+                key_last_four=None,
+            )
+        )
+    if rt.settings.allow_mock_llm:
+        listed.append(
+            ProviderOut(
+                name="mock",
+                needs_key=False,
+                available=True,
+                default_model="mock",
+                key_last_four=None,
+            )
+        )
+    return listed
+
+
+def choose_provider(rt: Runtime, principal: Principal, requested: str | None) -> str:
+    """Use the requested provider, then the configured default, then free APIs, then Ollama."""
+    options = list_providers(rt, principal)
+    available = [option.name for option in options if option.available]
+    if requested is not None:
+        if requested not in available:
+            raise HTTPException(409, f"'{requested}' isn't available; add its key first")
+        return requested
+    default = rt.settings.default_provider
+    if default in available:
+        return str(default)
+    if not available:
+        raise HTTPException(409, "add an API key or enable Ollama before starting a task")
+    return available[0]
 
 
 def create_app(runtime: Runtime | None = None) -> FastAPI:
     """Build the app. Tests pass a runtime, and otherwise it's created on first use."""
     app = FastAPI(title="agent-timelines")
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
+        # The default response echoes what was submitted, which could include an API key.
+        detail = [
+            {"loc": error["loc"], "msg": error["msg"], "type": error["type"]}
+            for error in exc.errors()
+        ]
+        return JSONResponse({"detail": detail}, status_code=422)
 
     def current_runtime() -> Runtime:
         return runtime if runtime is not None else get_runtime()
@@ -59,14 +137,36 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/api/providers")
+    def providers(rt: RuntimeDep, principal: PrincipalDep) -> list[ProviderOut]:
+        return list_providers(rt, principal)
+
+    @app.put("/api/keys/{provider}")
+    def save_key(
+        provider: str, body: SaveKey, rt: RuntimeDep, principal: PrincipalDep
+    ) -> ProviderOut:
+        store = keys_of(rt)
+        if provider not in HOSTED_PROVIDERS:
+            raise HTTPException(404, "this provider doesn't use a saved key")
+        api_key = body.api_key.get_secret_value().strip()
+        if not MIN_KEY_CHARS <= len(api_key) <= MAX_KEY_CHARS:
+            raise HTTPException(422, "that doesn't look like an API key")
+        store.put(principal.user_id, provider, api_key)
+        return next(p for p in list_providers(rt, principal) if p.name == provider)
+
+    @app.delete("/api/keys/{provider}", status_code=204)
+    def delete_key(provider: str, rt: RuntimeDep, principal: PrincipalDep) -> None:
+        if not keys_of(rt).delete(principal.user_id, provider):
+            raise HTTPException(404, "no key is saved for this provider")
+
     @app.post("/api/trees", status_code=201)
     def create_tree(body: CreateTree, rt: RuntimeDep, principal: PrincipalDep) -> Created:
         task = body.task.strip()
         if not task:
             raise HTTPException(422, "the task can't be blank")
-        tree_id, branch_id = start_task(
-            rt.deps, principal.user_id, task, TreeConfig(tools=AGENT_TOOLS)
-        )
+        provider = choose_provider(rt, principal, body.provider)
+        config = TreeConfig(tools=AGENT_TOOLS, provider=provider, model=body.model)
+        tree_id, branch_id = start_task(rt.deps, principal.user_id, task, config)
         return Created(tree_id=tree_id, branch_id=branch_id)
 
     @app.get("/api/trees")

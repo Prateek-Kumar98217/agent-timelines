@@ -54,6 +54,10 @@ class LLMRequest:
     messages: Sequence[JsonDict]
     tools: Sequence[JsonDict]
     force_final: bool = False
+    provider: str | None = None
+    model: str | None = None
+    temperature: float | None = None
+    owner_id: UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -76,6 +80,14 @@ class ProviderRateLimitedError(Exception):
 
 class ProviderTransientError(Exception):
     """A brief provider failure, such as a timeout or a 5xx. The step is retried a few times."""
+
+
+class ProviderRefusedError(Exception):
+    """The provider refused the request for good, such as a bad key or an unknown model.
+
+    The message is safe to show and store. It must never include provider response text, which can
+    echo part of a key.
+    """
 
 
 class LLMProvider(Protocol):

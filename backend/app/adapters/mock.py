@@ -27,7 +27,7 @@ RATE_LIMIT_MARKER = re.compile(r"\[rate-limit:(\d+)\]")
 
 
 class MockLLM:
-    """Calls the first offered tool `tool_turns` times, then answers.
+    """Calls a tool `tool_turns` times, then answers. It prefers the local knowledge base.
 
     A task containing `[rate-limit:N]` is refused once per process with an N-second retry.
     """
@@ -54,7 +54,7 @@ class MockLLM:
         usage = Usage(estimate_tokens(request.messages), 20)
         tool_results = sum(1 for m in request.messages if m["role"] == "tool")
         if request.tools and tool_results < self.tool_turns:
-            tool = request.tools[0]
+            tool = next((t for t in request.tools if t["name"] == "kb_search"), request.tools[0])
             return LLMResponse(
                 usage=usage,
                 tool_call=ToolCall(tool["name"], _arguments_for(tool["parameters"], question)),

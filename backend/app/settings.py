@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://timelines:timelines-local@127.0.0.1:5432/timelines"
     redis_url: str = "redis://127.0.0.1:6379/0"
     rabbitmq_url: str = "amqp://guest:guest@127.0.0.1:5672//"
+    ollama_url: str | None = None
+    default_provider: str | None = None
+    allow_mock_llm: bool = False
+    master_key_file: str = "./.local/master.key"
     searxng_url: str = "http://127.0.0.1:18080"
     browser_url: str = "http://127.0.0.1:18081"
     gateway_url: str = "http://127.0.0.1:8100/mcp"
