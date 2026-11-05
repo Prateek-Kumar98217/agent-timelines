@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from app.adapters.llm import HOSTED_PROVIDERS, OLLAMA_DEFAULT_MODEL
 from app.api.schemas import (
@@ -104,6 +105,21 @@ def choose_provider(rt: Runtime, principal: Principal, requested: str | None) ->
     return available[0]
 
 
+def require_tree(session: Session, tree_id: UUID, principal: Principal) -> Tree:
+    """Return the principal's tree. Someone else's is a 404, so its existence isn't revealed."""
+    tree = session.get(Tree, tree_id)
+    if tree is None or tree.owner_id != principal.user_id:
+        raise HTTPException(404, "tree not found")
+    return tree
+
+
+def require_branch(session: Session, branch_id: UUID, principal: Principal) -> Branch:
+    branch = session.get(Branch, branch_id)
+    if branch is None or branch.owner_id != principal.user_id:
+        raise HTTPException(404, "branch not found")
+    return branch
+
+
 def create_app(runtime: Runtime | None = None) -> FastAPI:
     """Build the app. Tests pass a runtime, and otherwise it's created on first use."""
     app = FastAPI(title="agent-timelines")
@@ -192,11 +208,9 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         ]
 
     @app.get("/api/trees/{tree_id}")
-    def get_tree(tree_id: UUID, rt: RuntimeDep, _principal: PrincipalDep) -> TreeOut:
+    def get_tree(tree_id: UUID, rt: RuntimeDep, principal: PrincipalDep) -> TreeOut:
         with rt.session_factory() as session:
-            tree = session.get(Tree, tree_id)
-            if tree is None:
-                raise HTTPException(404, "tree not found")
+            tree = require_tree(session, tree_id, principal)
             branches = session.execute(
                 select(Branch).where(Branch.tree_id == tree_id).order_by(Branch.created_at)
             ).scalars()
@@ -214,6 +228,11 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     def fork(
         node_id: UUID, body: ForkRequest, rt: RuntimeDep, principal: PrincipalDep
     ) -> BranchOut:
+        with rt.session_factory() as session:
+            node = session.get(Node, node_id)
+            if node is None:
+                raise HTTPException(404, f"node {node_id} not found")
+            require_tree(session, node.tree_id, principal)
         try:
             branch_id = fork_from_edit(rt.deps, principal.user_id, node_id, body.edit)
         except NodeNotFoundError as exc:
@@ -226,18 +245,19 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
             return BranchOut.model_validate(session.get_one(Branch, branch_id))
 
     @app.post("/api/branches/{branch_id}/cancel")
-    def cancel(branch_id: UUID, rt: RuntimeDep, _principal: PrincipalDep) -> BranchOut:
+    def cancel(branch_id: UUID, rt: RuntimeDep, principal: PrincipalDep) -> BranchOut:
         with rt.session_factory() as session:
-            if session.get(Branch, branch_id) is None:
-                raise HTTPException(404, "branch not found")
+            require_branch(session, branch_id, principal)
         if not cancel_branch(rt.deps, branch_id):
             raise HTTPException(409, "the branch has already finished")
         with rt.session_factory() as session:
             return BranchOut.model_validate(session.get_one(Branch, branch_id))
 
     @app.get("/api/compare")
-    def compare(a: UUID, b: UUID, rt: RuntimeDep, _principal: PrincipalDep) -> ComparisonOut:
+    def compare(a: UUID, b: UUID, rt: RuntimeDep, principal: PrincipalDep) -> ComparisonOut:
         with rt.session_factory() as session:
+            require_branch(session, a, principal)
+            require_branch(session, b, principal)
             try:
                 return ComparisonOut.model_validate(compare_branches(session, a, b))
             except BranchesNotComparableError as exc:
@@ -247,9 +267,11 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     def events(
         tree_id: UUID,
         rt: RuntimeDep,
-        _principal: PrincipalDep,
+        principal: PrincipalDep,
         after: Annotated[int, Query(ge=0)] = 0,
     ) -> list[EventOut]:
+        with rt.session_factory() as session:
+            require_tree(session, tree_id, principal)
         return [
             EventOut(seq=event.seq, type=event.type, payload=event.payload)
             for event in read_events(rt.session_factory, tree_id, after)
@@ -259,13 +281,12 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     def stream(
         tree_id: UUID,
         rt: RuntimeDep,
-        _principal: PrincipalDep,
+        principal: PrincipalDep,
         after: Annotated[int, Query(ge=0)] = 0,
         last_event_id: Annotated[int | None, Header()] = None,
     ) -> StreamingResponse:
         with rt.session_factory() as session:
-            if session.get(Tree, tree_id) is None:
-                raise HTTPException(404, "tree not found")
+            require_tree(session, tree_id, principal)
         return StreamingResponse(
             event_stream(
                 rt.session_factory,
