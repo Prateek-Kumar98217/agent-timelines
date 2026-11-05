@@ -24,6 +24,11 @@ To run models with no account, use Ollama (a GPU helps):
 APP_OLLAMA_URL=http://ollama:11434 docker compose --profile ollama up -d --build --wait api worker beat ollama ollama-pull
 ```
 
+Grafana has an **Agent Timelines** dashboard for latency, queue wait, rejections, cache hit rate,
+tokens and branch outcomes. Its source is `infra/grafana/build_dashboard.py`. One trace in Tempo
+follows a branch across the API, worker and gateway. `scripts/smoke_observability.py` checks all of
+this on a running stack.
+
 Hosted providers (Groq, Gemini, OpenRouter) use a key you save with `PUT /api/keys/{provider}`.
 
 To test failure recovery (killing a worker mid-step and stopping the broker), start the stack with

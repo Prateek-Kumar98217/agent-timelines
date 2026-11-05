@@ -15,6 +15,7 @@ x-app: &app
     APP_BROWSER_URL: http://browser:8000
     APP_SEARXNG_URL: http://searxng:8080
     APP_MASTER_KEY_FILE: /data/master.key
+    APP_OTEL_ENDPOINT: http://observability:4318
     APP_LEASE_SECONDS: ${APP_LEASE_SECONDS:-300}
     APP_LOCAL_ACTIVE_BRANCHES: ${APP_LOCAL_ACTIVE_BRANCHES:-5}
     APP_OLLAMA_URL: ${APP_OLLAMA_URL:-}
@@ -69,6 +70,9 @@ services:
 
   gateway:
     <<: *app
+    environment:
+      <<: *app-env
+      APP_SERVICE_NAME: gateway
     command: ["uvicorn", "app.gateway.asgi:app", "--host", "0.0.0.0", "--port", "8100"]
     networks: [default, web]
     depends_on:
@@ -112,6 +116,9 @@ services:
 
   api:
     <<: *app
+    environment:
+      <<: *app-env
+      APP_SERVICE_NAME: api
     command: ["uvicorn", "app.api.asgi:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "127.0.0.1:8000:8000"
@@ -121,6 +128,8 @@ services:
       gateway:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      observability:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -136,6 +145,9 @@ services:
 
   worker:
     <<: *app
+    environment:
+      <<: *app-env
+      APP_SERVICE_NAME: worker
     command: ["celery", "-A", "app.worker.celery_app", "worker", "-c", "4", "-l", "INFO"]
     depends_on: *app-deps
 
@@ -193,8 +205,14 @@ services:
     image: grafana/otel-lgtm:0.39.0
     ports:
       - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3100:3100"
+      - "127.0.0.1:3200:3200"
       - "127.0.0.1:4317:4317"
       - "127.0.0.1:4318:4318"
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./infra/grafana/agent-timelines.json:/otel-lgtm/agent-timelines.json:ro
+      - ./infra/grafana/provisioning.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/agent-timelines.yaml:ro
 
 networks:
   web:

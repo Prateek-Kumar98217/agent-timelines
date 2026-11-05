@@ -17,6 +17,7 @@ tested, along with what closed it.
 | The task gate is a text check, so it has gaps and can wrongly refuse | Out-of-scope tasks can get through, though turn and token limits still bound their cost | Accepted |
 | Guest and signed-in limits are defined, but nothing uses them yet: no demo task, guest sessions, IP limits or fork expiry | These only matter for the public demo | Deferred |
 | A DNS answer can change between the browser's URL check and its request | A page could reach a private address, so the browser container gets no secrets and no route to the database, broker or API. It can reach the gateway, whose tools each require a signed token | Accepted |
+| Traces stop at the gateway, with no spans inside the browser service or SearXNG | Slow page fetches show up as one long tool span | Accepted |
 | Compare has no semantic similarity or convergence score | Divergence is only structural | 8 |
 | External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
 | The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
