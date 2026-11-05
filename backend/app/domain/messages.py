@@ -44,6 +44,13 @@ def message_for_node(node: Node, pending_text: str | None = None) -> Message | N
             return None
 
 
+def required_message(node: Node, pending_text: str | None = None) -> Message:
+    message = message_for_node(node, pending_text)
+    if message is None:
+        raise ValueError(f"{node.type} node {node.id} has no message of its own")
+    return message
+
+
 def messages_from_path(path: Iterable[Node]) -> list[Message]:
     messages: list[Message] = []
     pending_text: str | None = None
