@@ -5,7 +5,7 @@ from the active profile, so the local, deployed and test builds share one codeba
 """
 
 from collections.abc import AsyncIterator, Sequence
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol
@@ -24,6 +24,8 @@ class StepMessage:
     branch_id: UUID
     seq: int
     trace_context: dict[str, str] = field(default_factory=dict)
+    # When the message was sent, in Unix seconds, for measuring queue wait.
+    enqueued_at: float | None = None
 
 
 class StepQueue(Protocol):
@@ -216,8 +218,33 @@ class Embedder(Protocol):
 
 
 class Telemetry(Protocol):
+    """Spans must never carry message text, tool arguments or keys: IDs and names only."""
+
     def span(
-        self, name: str, attributes: JsonDict | None = None
+        self,
+        name: str,
+        attributes: JsonDict | None = None,
+        parent: dict[str, str] | None = None,
     ) -> AbstractContextManager[None]: ...
 
     def record(self, metric: str, value: float, attributes: JsonDict | None = None) -> None: ...
+
+    def trace_context(self) -> dict[str, str]:
+        """The current trace as headers, so work in another process can continue it."""
+        ...
+
+
+class NoopTelemetry:
+    def span(
+        self,
+        name: str,
+        attributes: JsonDict | None = None,
+        parent: dict[str, str] | None = None,
+    ) -> AbstractContextManager[None]:
+        return nullcontext()
+
+    def record(self, metric: str, value: float, attributes: JsonDict | None = None) -> None:
+        return None
+
+    def trace_context(self) -> dict[str, str]:
+        return {}

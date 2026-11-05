@@ -12,6 +12,7 @@ app = build_app(
         browser=_runtime.adapters.browser,
         embedder=_runtime.adapters.embedder,
         cache_ttl_seconds=_runtime.settings.cache_ttl_seconds,
+        telemetry=_runtime.adapters.telemetry,
     ),
     _runtime.settings.gateway_token_secret,
 )

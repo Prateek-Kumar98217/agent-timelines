@@ -52,7 +52,7 @@ class CeleryStepQueue:
         self._app.send_task(
             RUN_STEP_TASK,
             args=[str(message.branch_id), message.seq],
-            kwargs={"trace_context": message.trace_context},
+            kwargs={"trace_context": message.trace_context, "enqueued_at": message.enqueued_at},
             queue=self._queue,
             retry=False,
         )
@@ -63,5 +63,7 @@ class CeleryStepQueue:
             return int(declared.message_count)
 
 
-def step_message(branch_id: str, seq: int, trace_context: dict[str, str] | None) -> StepMessage:
-    return StepMessage(UUID(branch_id), seq, trace_context or {})
+def step_message(
+    branch_id: str, seq: int, trace_context: dict[str, str] | None, enqueued_at: float | None
+) -> StepMessage:
+    return StepMessage(UUID(branch_id), seq, trace_context or {}, enqueued_at)

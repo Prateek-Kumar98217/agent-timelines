@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import time
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -15,6 +16,8 @@ from app.ports import (
     Cache,
     Embedder,
     JsonDict,
+    NoopTelemetry,
+    Telemetry,
     ToolContext,
     ToolOutcome,
 )
@@ -39,8 +42,23 @@ class GatewayTools:
     embedder: Embedder
     cache_ttl_seconds: int = 3600
     cache_counts: Counter[str] = field(default_factory=Counter)
+    telemetry: Telemetry = field(default_factory=NoopTelemetry)
 
     def execute(self, context: ToolContext, name: str, arguments: JsonDict) -> ToolOutcome:
+        started = time.perf_counter()
+        outcome = self._execute(context, name, arguments)
+        self.telemetry.record(
+            "tool.duration",
+            time.perf_counter() - started,
+            {"tool": name, "is_error": str(outcome.is_error).lower()},
+        )
+        return outcome
+
+    def _count_cache(self, name: str, result: str) -> None:
+        self.cache_counts[f"{name}:{result}"] += 1
+        self.telemetry.record("tool.cache", 1, {"tool": name, "result": result})
+
+    def _execute(self, context: ToolContext, name: str, arguments: JsonDict) -> ToolOutcome:
         handlers: dict[str, tuple[Handler, bool]] = {
             "web_search": (self._web_search, True),
             "page_fetch": (self._page_fetch, True),
@@ -56,10 +74,10 @@ class GatewayTools:
         if cacheable and not context.bypass_cache:
             cached = self.cache.get(key)
             if cached is not None:
-                self.cache_counts[f"{name}:hit"] += 1
+                self._count_cache(name, "hit")
                 return ToolOutcome(cached)
         if cacheable:
-            self.cache_counts[f"{name}:miss"] += 1
+            self._count_cache(name, "miss")
         try:
             content = handler(context, arguments)
         except (BrowserBlockedError, CalculatorError) as exc:

@@ -7,6 +7,7 @@ same step. No process stays alive between steps, so a waiting branch uses no com
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -84,7 +85,17 @@ def start_task(
     deps: EngineDeps, owner_id: UUID, task: str, config: TreeConfig | None = None
 ) -> tuple[UUID, UUID]:
     """Create a tree with its main branch and queue the first step. Returns (tree_id, branch_id)."""
-    config = config or TreeConfig()
+    started = time.perf_counter()
+    with deps.telemetry.span("task.start"):
+        result = _start_task(deps, owner_id, task, config or TreeConfig())
+    deps.telemetry.record("task.start_duration", time.perf_counter() - started)
+    deps.telemetry.record("admission.accepted", 1, {"kind": "tree"})
+    return result
+
+
+def _start_task(
+    deps: EngineDeps, owner_id: UUID, task: str, config: TreeConfig
+) -> tuple[UUID, UUID]:
     with deps.session_factory() as session:
         admit_tree(session, deps.limits, deps.rate_limiter, owner_id)
         tree = Tree(id=uuid4(), owner_id=owner_id)
@@ -138,9 +149,9 @@ def start_task(
             append_event(session, tree.id, "branch_created", branch_id=str(branch.id)),
             *_node_events(session, tree.id, [root, user_msg]),
         ]
-        outbox_id = add_step(session, branch.id, 0, deps.now())
+        outbox_id = add_step(session, branch.id, 0, deps.now(), deps.telemetry.trace_context())
         session.commit()
-    publish_all(deps.live_events, events)
+    publish_all(deps.live_events, events, deps.telemetry)
     dispatch_soon(deps, outbox_id)
     return tree.id, branch.id
 
@@ -153,42 +164,69 @@ def cancel_branch(deps: EngineDeps, branch_id: UUID) -> bool:
             return False
         events = _finish(session, branch, BranchStatus.CANCELLED, deps.now(), "cancelled by user")
         session.commit()
-    publish_all(deps.live_events, events)
+    publish_all(deps.live_events, events, deps.telemetry)
     return True
 
 
 def run_step(deps: EngineDeps, message: StepMessage) -> StepOutcome:
+    started = time.perf_counter()
+    attributes = {"branch.id": str(message.branch_id), "step.seq": message.seq}
+    with deps.telemetry.span("step.run", attributes, parent=message.trace_context):
+        outcome, action = _run_step(deps, message)
+    deps.telemetry.record("step.outcome", 1, {"outcome": outcome.value})
+    if action is not None:
+        deps.telemetry.record(
+            "step.duration",
+            time.perf_counter() - started,
+            {"action": action.value, "outcome": outcome.value},
+        )
+    return outcome
+
+
+def _run_step(deps: EngineDeps, message: StepMessage) -> tuple[StepOutcome, NextAction | None]:
     claim = _claim(deps, message)
     if isinstance(claim, StepOutcome):
-        return claim
+        return claim, None
+    if message.enqueued_at is not None and claim.attempt == 1:
+        wait = max(0.0, deps.now().timestamp() - message.enqueued_at)
+        deps.telemetry.record("queue.wait", wait)
 
     state: dict[str, Any] = {
         "action": claim.action.value,
         "config": claim.config,
         "messages": claim.messages,
     }
+    provider = claim.config.provider or "unknown"
     if claim.action is NextAction.LLM:
         state["owner_id"] = claim.owner_id
         state["force_final"] = claim.turns_used + 1 >= claim.config.turn_cap
+        span_name, span_attributes = "llm.call", {"llm.provider": provider}
     else:
         state["pending_tool"] = claim.pending_tool
+        tool = claim.pending_tool.name if claim.pending_tool else "unknown"
+        span_name, span_attributes = "tool.call", {"tool.name": tool}
 
+    called = time.perf_counter()
     try:
-        result = deps.graph.invoke(state)
+        with deps.telemetry.span(span_name, span_attributes):
+            result = deps.graph.invoke(state)
     except ProviderRateLimitedError as exc:
-        return _release_to_waiting(deps, message, claim, exc.retry_after_seconds)
+        return _release_to_waiting(deps, message, claim, exc.retry_after_seconds), claim.action
     except ProviderTransientError:
         # Attempts aren't reset, so a provider that stays down fails the branch at the limit.
         delay = TRANSIENT_RETRY_SECONDS * 2 ** (claim.attempt - 1)
-        return _release_to_waiting(deps, message, claim, delay, reset_attempts=False)
+        outcome = _release_to_waiting(deps, message, claim, delay, reset_attempts=False)
+        return outcome, claim.action
     except ProviderRefusedError as exc:
-        return _fail(deps, message, claim, str(exc))
+        return _fail(deps, message, claim, str(exc)), claim.action
     except Exception as exc:
-        return _fail(deps, message, claim, f"{type(exc).__name__}: {exc}")
+        return _fail(deps, message, claim, f"{type(exc).__name__}: {exc}"), claim.action
 
     if claim.action is NextAction.LLM:
-        return _commit_llm(deps, message, claim, result["llm_response"], state["force_final"])
-    return _commit_tool(deps, message, claim, result["tool_outcome"])
+        deps.telemetry.record("llm.duration", time.perf_counter() - called, {"provider": provider})
+        response = result["llm_response"]
+        return _commit_llm(deps, message, claim, response, state["force_final"]), claim.action
+    return _commit_tool(deps, message, claim, result["tool_outcome"]), claim.action
 
 
 def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
@@ -206,7 +244,7 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
             reason = f"step abandoned after {branch.step_attempts} attempts"
             events = _finish(session, branch, BranchStatus.FAILED, now, reason)
             session.commit()
-            publish_all(deps.live_events, events)
+            publish_all(deps.live_events, events, deps.telemetry)
             return StepOutcome.FAILED
 
         state = session.get_one(BranchState, branch.id)
@@ -219,7 +257,7 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
             if stop is not None:
                 events = _finish(session, branch, stop[0], now, stop[1])
                 session.commit()
-                publish_all(deps.live_events, events)
+                publish_all(deps.live_events, events, deps.telemetry)
                 return StepOutcome.STOPPED
 
         pending_tool = None
@@ -250,7 +288,7 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
             attempt=branch.step_attempts,
         )
         session.commit()
-    publish_all(deps.live_events, events)
+    publish_all(deps.live_events, events, deps.telemetry)
     return claim
 
 
@@ -344,7 +382,9 @@ def _commit_llm(
             events = _node_events(session, branch.tree_id, new_nodes)
             events.extend(_advance(session, branch))
             outcome = StepOutcome.EXECUTED
-            outbox_id = add_step(session, branch.id, branch.step_seq, deps.now())
+            outbox_id = add_step(
+                session, branch.id, branch.step_seq, deps.now(), deps.telemetry.trace_context()
+            )
         else:
             state.messages = [*state.messages, required_message(llm_output)]
             state.head_node_id = llm_output.id
@@ -367,7 +407,13 @@ def _commit_llm(
         owner_id = branch.owner_id
         session.commit()
     _charge_tokens(deps, owner_id, response.usage.input_tokens + response.usage.output_tokens)
-    publish_all(deps.live_events, events)
+    provider = claim.config.provider or "unknown"
+    for direction, count in (
+        ("input", response.usage.input_tokens),
+        ("output", response.usage.output_tokens),
+    ):
+        deps.telemetry.record("llm.tokens", count, {"provider": provider, "direction": direction})
+    publish_all(deps.live_events, events, deps.telemetry)
     if outbox_id is not None:
         dispatch_soon(deps, outbox_id)
     return outcome
@@ -409,9 +455,11 @@ def _commit_tool(
         state.bypass_cache = False
         events = _node_events(session, branch.tree_id, [result])
         events.extend(_advance(session, branch))
-        outbox_id = add_step(session, branch.id, branch.step_seq, deps.now())
+        outbox_id = add_step(
+            session, branch.id, branch.step_seq, deps.now(), deps.telemetry.trace_context()
+        )
         session.commit()
-    publish_all(deps.live_events, events)
+    publish_all(deps.live_events, events, deps.telemetry)
     dispatch_soon(deps, outbox_id)
     return StepOutcome.EXECUTED
 
@@ -441,9 +489,15 @@ def _release_to_waiting(
             branch.step_attempts = 0
         events = [_status_event(session, branch)]
         # The sweeper sends this once it's due. Until then only a database row exists.
-        add_step(session, branch.id, message.seq, deps.now() + timedelta(seconds=delay_seconds))
+        add_step(
+            session,
+            branch.id,
+            message.seq,
+            deps.now() + timedelta(seconds=delay_seconds),
+            deps.telemetry.trace_context(),
+        )
         session.commit()
-    publish_all(deps.live_events, events)
+    publish_all(deps.live_events, events, deps.telemetry)
     return StepOutcome.WAITING
 
 
@@ -454,7 +508,7 @@ def _fail(deps: EngineDeps, message: StepMessage, claim: _Claim, reason: str) ->
             return StepOutcome.DISCARDED_STALE
         events = _finish(session, branch, BranchStatus.FAILED, deps.now(), reason)
         session.commit()
-    publish_all(deps.live_events, events)
+    publish_all(deps.live_events, events, deps.telemetry)
     return StepOutcome.FAILED
 
 

@@ -27,7 +27,12 @@ def build_server(tools: GatewayTools, token_secret: str) -> MCPServer:
             raise ToolError("the call isn't authorized") from exc
 
     def run(ctx: Context[Any, Any], name: str, arguments: JsonDict) -> str:
-        outcome = tools.execute(caller(ctx), name, arguments)
+        context = caller(ctx)
+        request = ctx.request_context.request
+        parent = dict(request.headers) if request is not None else None
+        attributes = {"tool.name": name, "branch.id": str(context.branch_id)}
+        with tools.telemetry.span("gateway.tool", attributes, parent=parent):
+            outcome = tools.execute(context, name, arguments)
         if outcome.is_error:
             raise ToolError(outcome.content)
         return outcome.content

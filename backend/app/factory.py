@@ -96,6 +96,7 @@ def _build_local(settings: Settings, key_lookup: KeyLookup) -> Adapters:
     from app.adapters.mcp_tools import McpToolExecutor
     from app.adapters.mock import MockLLM
     from app.adapters.redis_store import RedisCache, RedisLiveEvents, RedisRateLimiter
+    from app.adapters.telemetry import OtelTelemetry
     from app.adapters.web import LocalWeb
 
     client: redis.Redis = redis.Redis.from_url(settings.redis_url, decode_responses=True)
@@ -104,16 +105,22 @@ def _build_local(settings: Settings, key_lookup: KeyLookup) -> Adapters:
         if settings.allow_mock_llm
         else None
     )
+    telemetry: Telemetry = (
+        OtelTelemetry(settings.service_name, settings.otel_endpoint)
+        if settings.otel_endpoint
+        else NoopTelemetry()
+    )
     return Adapters(
         queue=CeleryStepQueue(make_celery(settings)),
         llm=RoutedLLM(key_lookup, settings.ollama_url, mock),
-        tools=McpToolExecutor(settings.gateway_url, settings.gateway_token_secret),
+        tools=McpToolExecutor(
+            settings.gateway_url, settings.gateway_token_secret, telemetry=telemetry
+        ),
         cache=RedisCache(client),
         rate_limiter=RedisRateLimiter(client),
         auth=LocalAuthenticator(),
         live_events=RedisLiveEvents(settings.redis_url),
         browser=LocalWeb(settings.searxng_url, settings.browser_url),
         embedder=FastEmbedEmbedder(settings.embedding_model, settings.embedding_cache_dir),
-        # Real telemetry arrives in milestone 7.
-        telemetry=NoopTelemetry(),
+        telemetry=telemetry,
     )
