@@ -1,0 +1,44 @@
+[project]
+name = "agent-timelines-backend"
+version = "0.1.0"
+description = "API, step worker and agent for agent-timelines"
+requires-python = ">=3.14"
+dependencies = [
+  "alembic",
+  "boto3",
+  "celery",
+  "cryptography",
+  "fastapi",
+  "fastembed",
+  "httpx",
+  "langchain-core",
+  "langchain-google-genai",
+  "langchain-openai",
+  "langgraph",
+  "mcp",
+  "opentelemetry-exporter-otlp-proto-http",
+  "opentelemetry-sdk",
+  "pgvector",
+  "playwright",
+  "psycopg[binary]",
+  "pydantic-settings",
+  "redis",
+  "sqlalchemy",
+  "uvicorn",
+]
+
+[dependency-groups]
+dev = ["mypy", "pytest", "pytest-asyncio", "ruff"]
+eval = ["deepeval", "locust"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
