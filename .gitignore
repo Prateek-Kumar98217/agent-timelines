@@ -25,6 +25,9 @@ out/
 .env.*
 !.env.example
 
+# DeepEval local state
+.deepeval/
+
 # OS and editors
 .DS_Store
 .idea/
