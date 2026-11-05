@@ -12,6 +12,9 @@ Requires [uv](https://docs.astral.sh/uv/) and Docker.
 uv sync --all-packages --all-groups --python 3.14   # install dependencies
 uv run pytest backend                               # run tests with the mock profile
 docker compose up -d --wait                         # start local infrastructure
+uv run python scripts/demo_fork.py                  # fork a scripted run and print the tree
 ```
+
+Tests and the demo need Postgres from the local stack.
 
 Grafana is at http://127.0.0.1:3000 once the stack is running.
