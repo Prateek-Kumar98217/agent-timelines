@@ -11,6 +11,7 @@ dependencies = [
   "fastapi",
   "fastembed",
   "httpx",
+  "jsonschema",
   "langchain-core",
   "langchain-google-genai",
   "langchain-openai",

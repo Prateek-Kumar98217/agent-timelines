@@ -78,6 +78,28 @@ class LLMProvider(Protocol):
     def complete(self, request: LLMRequest) -> LLMResponse: ...
 
 
+# Agent tools
+
+
+@dataclass(frozen=True)
+class ToolContext:
+    """Identifies the call. Tools take the branch from here, never from model-chosen arguments."""
+
+    branch_id: UUID
+    tool_call_node_id: UUID
+    bypass_cache: bool = False
+
+
+@dataclass(frozen=True)
+class ToolOutcome:
+    content: str
+    is_error: bool = False
+
+
+class ToolExecutor(Protocol):
+    def execute(self, context: ToolContext, name: str, arguments: JsonDict) -> ToolOutcome: ...
+
+
 # Cache and rate limiting
 
 

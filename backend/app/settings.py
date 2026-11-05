@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="APP_", extra="ignore")
 
     profile: Profile = Profile.LOCAL
+    database_url: str = "postgresql+psycopg://timelines:timelines-local@127.0.0.1:5432/timelines"
 
 
 @lru_cache

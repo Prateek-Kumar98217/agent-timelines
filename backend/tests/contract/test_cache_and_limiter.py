@@ -1,6 +1,7 @@
 """Behaviour every cache and rate limiter must share. Later adapters join these fixtures."""
 
 import pytest
+
 from app.adapters.memory import MemoryCache, MemoryRateLimiter
 from app.ports import Cache, RateLimiter
 

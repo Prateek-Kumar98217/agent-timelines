@@ -1,4 +1,5 @@
 import pytest
+
 from app.adapters.memory import InlineQueue
 from app.factory import ProfileNotAvailableError, build_adapters
 from app.settings import Profile, Settings

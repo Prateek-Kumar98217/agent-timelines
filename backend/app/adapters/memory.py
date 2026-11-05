@@ -19,6 +19,8 @@ from app.ports import (
     RateDecision,
     SearchResult,
     StepMessage,
+    ToolContext,
+    ToolOutcome,
     TreeEvent,
 )
 
@@ -51,6 +53,9 @@ class ScriptedLLM:
         self._responses = deque(responses)
         self.requests: list[LLMRequest] = []
 
+    def add(self, response: LLMResponse | Exception) -> None:
+        self._responses.append(response)
+
     def complete(self, request: LLMRequest) -> LLMResponse:
         self.requests.append(request)
         if not self._responses:
@@ -59,6 +64,24 @@ class ScriptedLLM:
         if isinstance(response, Exception):
             raise response
         return response
+
+
+ToolHandler = Callable[[ToolContext, JsonDict], ToolOutcome]
+
+
+class FixtureTools:
+    """Runs handlers supplied by the test and records every call."""
+
+    def __init__(self, handlers: dict[str, ToolHandler] | None = None) -> None:
+        self.handlers = handlers or {}
+        self.calls: list[tuple[ToolContext, str, JsonDict]] = []
+
+    def execute(self, context: ToolContext, name: str, arguments: JsonDict) -> ToolOutcome:
+        self.calls.append((context, name, arguments))
+        handler = self.handlers.get(name)
+        if handler is None:
+            return ToolOutcome(f"result of {name}({arguments})")
+        return handler(context, arguments)
 
 
 class MemoryCache:
