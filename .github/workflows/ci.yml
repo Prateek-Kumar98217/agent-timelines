@@ -40,3 +40,17 @@ jobs:
         run: uv run --no-sync playwright install --with-deps chromium
       - name: Check dependencies at runtime
         run: uv run --no-sync python -W ignore scripts/check_runtime.py --with-model --with-browser
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Start the local stack
+        run: docker compose up -d --wait
+      - name: Check pgvector
+        run: >-
+          docker compose exec -T postgres psql -U timelines -d timelines
+          -Atc "create extension if not exists vector; select '[1,2]'::vector <-> '[1,3]'::vector;"
+      - name: Stop the local stack
+        if: always()
+        run: docker compose down -v
