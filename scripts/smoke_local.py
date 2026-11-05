@@ -2,7 +2,7 @@
 
 Start it with short leases and slow steps, so failures land mid-step and recovery is quick:
     APP_LEASE_SECONDS=10 APP_MOCK_LLM_LATENCY_SECONDS=1 \
-    APP_ALLOW_MOCK_LLM=true APP_DEFAULT_PROVIDER=mock \
+    APP_ALLOW_MOCK_LLM=true APP_DEFAULT_PROVIDER=mock APP_LOCAL_ACTIVE_BRANCHES=30 \
         docker compose up -d --build --wait api worker beat
     uv run python scripts/smoke_local.py
 """
@@ -11,6 +11,7 @@ import json
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import httpx
@@ -152,6 +153,33 @@ def queue_messages() -> int:
     raise AssertionError(f"no steps queue in: {output}")
 
 
+def check_limits_and_scope() -> None:
+    refused = client.post("/api/trees", json={"task": "Write a Python script to rename files"})
+    assert refused.status_code == 422, refused.text
+
+    tree_id, main = create("Reach the branch cap")
+    assert wait_finished(tree_id, [main])[main] == "completed"
+    user_msg = nodes_of(tree(tree_id), main)[1]["id"]
+    # More than the cap of 30, sent at once, so the database lock has to hold under real load.
+    edits = [{"text": f"Cap test {i}"} for i in range(40)]
+    with ThreadPoolExecutor(10) as pool:
+        responses = list(
+            pool.map(
+                lambda edit: client.post(f"/api/nodes/{user_msg}/fork", json={"edit": edit}), edits
+            )
+        )
+    accepted = [r.json()["id"] for r in responses if r.status_code == 201]
+    rejected = [r for r in responses if r.status_code == 429]
+    assert len(accepted) + len(rejected) == len(edits), [r.status_code for r in responses]
+    assert len(accepted) <= 30
+    assert rejected
+    assert {r.json()["reason"] for r in rejected} == {"active_branches"}
+    assert all("Retry-After" in r.headers for r in rejected)
+    for branch_id in accepted:
+        client.post(f"/api/branches/{branch_id}/cancel")
+    print(f"ok   limits: {len(accepted)} of 40 parallel forks accepted, {len(rejected)} got 429")
+
+
 def check_tools_through_gateway() -> None:
     tree_id, branch = create("capital of Australia")
     assert wait_finished(tree_id, [branch])[branch] == "completed"
@@ -237,6 +265,7 @@ def check_broker_outage() -> None:
 def main() -> None:
     assert client.get("/healthz").json() == {"status": "ok"}
     check_run_forks_and_stream()
+    check_limits_and_scope()
     check_tools_through_gateway()
     check_browser_isolation()
     check_waiting_uses_no_compute()
