@@ -26,6 +26,7 @@ known-first-party = ["app", "tests", "browser_service"]
 "evals/**" = ["S101", "S311"]
 "loadtest/**" = ["S311"]
 "**/alembic/versions/**" = ["E501", "RUF"]
+"loadtest/run.py" = ["S603", "S607", "S101", "PLR0124"]
 "kb/**" = ["E501", "RUF001"]
 "scripts/**" = ["S101", "S608", "S603", "S607", "S113"]
 
