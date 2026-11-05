@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from app.adapters.memory import (
     FakeAuthenticator,
     FixtureBrowser,
+    FixtureTools,
     HashEmbedder,
     InlineQueue,
     MemoryCache,
@@ -23,6 +24,7 @@ from app.ports import (
     RateLimiter,
     StepQueue,
     Telemetry,
+    ToolExecutor,
 )
 from app.settings import Profile, Settings
 
@@ -35,6 +37,7 @@ class ProfileNotAvailableError(RuntimeError):
 class Adapters:
     queue: StepQueue
     llm: LLMProvider
+    tools: ToolExecutor
     cache: Cache
     rate_limiter: RateLimiter
     auth: Authenticator
@@ -50,6 +53,7 @@ def build_adapters(settings: Settings) -> Adapters:
             return Adapters(
                 queue=InlineQueue(),
                 llm=ScriptedLLM([]),
+                tools=FixtureTools(),
                 cache=MemoryCache(),
                 rate_limiter=MemoryRateLimiter(),
                 auth=FakeAuthenticator(),
