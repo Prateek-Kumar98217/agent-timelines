@@ -7,3 +7,6 @@ uv run mypy
 uv run pytest backend -q -W ignore
 uv run pytest browser_service -q -W ignore
 uv run pytest evals/tests -q -W ignore -p no:cacheprovider
+npm run lint --prefix web
+npm run typecheck --prefix web
+npm test --prefix web

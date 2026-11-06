@@ -19,6 +19,8 @@ tested, along with what closed it.
 | A DNS answer can change between the browser's URL check and its request | A page could reach a private address, so the browser container gets no secrets and no route to the database, broker or API. It can reach the gateway, whose tools each require a signed token | Accepted |
 | Traces stop at the gateway, with no spans inside the browser service or SearXNG | Slow page fetches show up as one long tool span | Accepted |
 | Compare has no semantic similarity or convergence score | Divergence is only structural | 8 |
+| The web app proxies `/api` through a Next.js server and has no sign-in, guest or demo screens | The deployed build needs a static export, a configurable API address and these flows, and its live updates can't use this event stream as is, because `EventSource` can't send a token | Deferred |
+| Live updates in the browser tests fall back to the stream's 5-second poll | The tests prove updates arrive, not how quickly | Accepted |
 | External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
 | The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
 | CI has never run on GitHub because the repo has no remote | A workflow problem could go unnoticed | When a remote is added |

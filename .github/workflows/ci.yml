@@ -70,6 +70,50 @@ jobs:
       - name: Check dependencies at runtime
         run: uv run --no-sync python -W ignore scripts/check_runtime.py --with-model --with-browser
 
+  web:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: timelines
+          POSTGRES_PASSWORD: timelines-local
+          POSTGRES_DB: timelines
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U timelines"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - name: Install
+        run: |
+          uv sync --locked --all-packages --group dev --python 3.14
+          npm ci --prefix web
+          npx --prefix web playwright install --with-deps chromium
+      - name: Lint
+        run: npm run lint --prefix web
+      - name: Types
+        run: npm run typecheck --prefix web
+      - name: Unit tests
+        run: npm test --prefix web
+      - name: Build for the browser tests
+        run: npm run build --prefix web
+        env:
+          API_URL: http://127.0.0.1:8001
+      - name: Browser tests
+        run: npm run e2e --prefix web
+
   compose-smoke:
     runs-on: ubuntu-latest
     steps:
