@@ -17,6 +17,7 @@ const TOOL_LABELS: Record<string, string> = {
   web_search: "web search",
   page_fetch: "open page",
   kb_search: "KB search",
+  task_search: "search this task",
   calculator: "calculator",
   scratchpad_write: "save note",
   scratchpad_search: "find note",

@@ -110,7 +110,7 @@ def test_create_run_and_read_a_tree(api: Api) -> None:
     assert tree["last_event_seq"] > 0
 
 
-def test_new_trees_offer_the_agent_tools(api: Api) -> None:
+def test_new_trees_with_the_scripted_model_offer_the_evaluation_tools(api: Api) -> None:
     tree = api.finished_tree()
     root = node_of(tree, "root")
     payload = root["payload"]
@@ -119,9 +119,10 @@ def test_new_trees_offer_the_agent_tools(api: Api) -> None:
     assert names == [
         "web_search",
         "page_fetch",
-        "kb_search",
+        "task_search",
         "calculator",
         "scratchpad_write",
+        "kb_search",
         "scratchpad_search",
     ]
 

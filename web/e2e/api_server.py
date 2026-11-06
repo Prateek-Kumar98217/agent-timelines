@@ -117,6 +117,7 @@ def main() -> None:
             tools=adapters.tools,
             live_events=adapters.live_events,
             rate_limiter=adapters.rate_limiter,
+            embedder=adapters.embedder,
             limits=make_limits(settings),
             telemetry=adapters.telemetry,
             lease_seconds=settings.lease_seconds,

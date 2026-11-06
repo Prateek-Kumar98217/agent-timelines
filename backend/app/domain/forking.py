@@ -31,6 +31,7 @@ from app.domain.limits import admit_fork
 from app.domain.messages import Message, messages_from_path, required_message
 from app.domain.outbox import add_step, dispatch_soon
 from app.domain.queries import load_config, path_to
+from app.domain.scratchpad import add_page, embed_page
 from app.domain.task_gate import task_problem
 from app.domain.tools import tool_call_problem
 from app.ports import TreeEvent
@@ -82,10 +83,26 @@ def fork_from_edit(
     """Create a branch with `edit` replacing the node. `allow_noop` is for evaluation runs."""
     started = time.perf_counter()
     with deps.telemetry.span("fork.create", {"node.id": str(node_id)}):
-        branch_id, node_type = _fork(deps, owner_id, node_id, edit, allow_noop, expires_at)
+        page = _embed_edited_page(deps, node_id, edit)
+        branch_id, node_type = _fork(deps, owner_id, node_id, edit, allow_noop, expires_at, page)
     deps.telemetry.record("fork.duration", time.perf_counter() - started, {"node_type": node_type})
     deps.telemetry.record("admission.accepted", 1, {"kind": "fork"})
     return branch_id
+
+
+def _embed_edited_page(
+    deps: EngineDeps, node_id: UUID, edit: dict[str, Any]
+) -> list[tuple[str, list[float]]]:
+    """An edited page replaces the original in this branch's store, so it needs its own vectors."""
+    with deps.session_factory() as session:
+        source = session.get(Node, node_id)
+        if source is None or source.type != NodeType.TOOL_RESULT:
+            return []
+        name = source.payload["name"]
+    content = edit.get("content")
+    if not isinstance(content, str):
+        return []
+    return embed_page(deps.embedder, name, content, edit.get("is_error") is True)
 
 
 def _fork(
@@ -95,6 +112,7 @@ def _fork(
     edit: dict[str, Any],
     allow_noop: bool,
     expires_at: datetime | None,
+    page: list[tuple[str, list[float]]],
 ) -> tuple[UUID, str]:
     with deps.session_factory() as session:
         source = session.get(Node, node_id)
@@ -132,6 +150,7 @@ def _fork(
             )
         session.add(state)
         _copy_scratchpad(session, source.branch_id, branch.id, [node.id for node in before])
+        add_page(session, branch.id, state.head_node_id, page)
         outbox_id = (
             None
             if finished

@@ -66,6 +66,7 @@ class GatewayTools:
             "calculator": (self._calculator, False),
             "scratchpad_write": (self._scratchpad_write, False),
             "scratchpad_search": (self._scratchpad_search, False),
+            "task_search": (self._task_search, False),
         }
         if name not in handlers:
             raise UnknownToolError(f"unknown tool: {name}")
@@ -120,6 +121,18 @@ class GatewayTools:
         )
         if not hits:
             return "The scratchpad has no notes."
+        return "\n\n".join(hit.content for hit in hits)
+
+    def _task_search(self, context: ToolContext, arguments: JsonDict) -> str:
+        hits = search_notes(
+            self.session_factory,
+            self.embedder,
+            context.branch_id,
+            arguments["query"],
+            NOTE_RESULTS,
+        )
+        if not hits:
+            return "Nothing found. This branch hasn't fetched any pages or saved any notes yet."
         return "\n\n".join(hit.content for hit in hits)
 
 

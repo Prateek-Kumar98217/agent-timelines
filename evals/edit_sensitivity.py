@@ -26,7 +26,7 @@ from tasks import TASKS, TASKS_BY_ID, EvalTask, fact_score
 from app.bootstrap import Runtime, get_runtime
 from app.db.models import NON_COMPLETED_STATUSES, Branch, BranchScore, Node
 from app.domain.compare import compare_branches
-from app.domain.config import AGENT_TOOLS, TreeConfig
+from app.domain.config import EVAL_TOOLS, TreeConfig
 from app.domain.engine import start_task
 from app.domain.forking import ForkError, fork_from_edit
 from app.domain.limits import AdmissionRejectedError
@@ -215,7 +215,7 @@ def main() -> None:
     args = parser.parse_args()
 
     runtime = get_runtime()
-    config = TreeConfig(tools=AGENT_TOOLS, provider=args.provider, model=args.model)
+    config = TreeConfig(tools=EVAL_TOOLS, provider=args.provider, model=args.model)
     done = load_runs(args.output)
     for task_id in args.tasks:
         task = TASKS_BY_ID[task_id]

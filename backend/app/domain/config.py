@@ -53,12 +53,14 @@ AGENT_TOOLS = [
     ),
     ToolSpec(
         name="page_fetch",
-        description="Read the text of a web page by URL.",
+        description=(
+            "Read the text of a web page by URL. The whole page stays searchable with task_search."
+        ),
         parameters=_schema(["url"], url=_TEXT),
     ),
     ToolSpec(
-        name="kb_search",
-        description="Search the main knowledge base.",
+        name="task_search",
+        description="Search the web pages fetched and the notes saved so far on this branch.",
         parameters=_schema(["query"], query=_TEXT),
     ),
     ToolSpec(
@@ -71,9 +73,24 @@ AGENT_TOOLS = [
         description="Save a note to this branch's scratchpad.",
         parameters=_schema(["text"], text=_TEXT),
     ),
+]
+
+# Evaluations measure retrieval against a fixed corpus, which real tasks have no use for. The
+# scripted model gets it too, so that tests and load tests never depend on the network.
+EVAL_TOOLS = [
+    *AGENT_TOOLS,
+    ToolSpec(
+        name="kb_search",
+        description="Search the main knowledge base.",
+        parameters=_schema(["query"], query=_TEXT),
+    ),
     ToolSpec(
         name="scratchpad_search",
         description="Search the notes saved in this branch's scratchpad.",
         parameters=_schema(["query"], query=_TEXT),
     ),
 ]
+
+
+def tools_for(provider: str) -> list[ToolSpec]:
+    return EVAL_TOOLS if provider == "mock" else AGENT_TOOLS

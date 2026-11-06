@@ -18,7 +18,8 @@ from app.adapters.memory import FixtureBrowser, HashEmbedder, MemoryCache
 from app.adapters.telemetry import OtelTelemetry
 from app.db.models import Branch, BranchStatus, Node, NodeType, Tree, User
 from app.db.session import SessionFactory
-from app.domain.config import AGENT_TOOLS
+from app.domain.config import EVAL_TOOLS
+from app.domain.scratchpad import add_page, embed_page
 from app.gateway.server import build_app, build_server
 from app.gateway.tokens import InvalidToolTokenError, mint_tool_token, read_tool_token
 from app.kb.ingest import ingest
@@ -251,7 +252,7 @@ def test_every_declared_agent_tool_exists_on_the_server(tools: GatewayTools) -> 
         listed = await build_server(tools, SECRET).list_tools()
         return {tool.name for tool in listed}
 
-    assert asyncio.run(names()) == {tool.name for tool in AGENT_TOOLS}
+    assert asyncio.run(names()) == {tool.name for tool in EVAL_TOOLS}
 
 
 def test_a_trace_crosses_the_gateway_over_real_http(clean_db: SessionFactory) -> None:
@@ -288,3 +289,26 @@ def test_a_trace_crosses_the_gateway_over_real_http(clean_db: SessionFactory) ->
     assert by_name["gateway.tool"].context.trace_id == by_name["tool.call"].context.trace_id
     assert by_name["gateway.tool"].resource.attributes["service.name"] == "gateway"
     assert SECRET not in by_name["gateway.tool"].to_json()
+
+
+def test_task_search_finds_only_what_this_branch_stored(
+    clean_db: SessionFactory, tools: GatewayTools
+) -> None:
+    mine, node = make_branch(clean_db)
+    other, _ = make_branch(clean_db)
+    empty = tools.execute(ToolContext(mine, node), "task_search", {"query": "anything"})
+    assert "hasn't fetched" in empty.content
+    with clean_db() as session:
+        add_page(
+            session,
+            mine,
+            node,
+            embed_page(HashEmbedder(), "page_fetch", "T\nhttps://a.test\n\nBody", False),
+        )
+        session.commit()
+
+    found = tools.execute(ToolContext(mine, node), "task_search", {"query": "Body"})
+    assert found.content == "From T (https://a.test)\nBody"
+    other_node = make_branch(clean_db)[1]
+    nothing = tools.execute(ToolContext(other, other_node), "task_search", {"query": "Body"})
+    assert "hasn't fetched" in nothing.content

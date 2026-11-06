@@ -35,6 +35,7 @@ from app.domain.limits import DAY_SECONDS, admit_tree, daily_tokens_left, tokens
 from app.domain.messages import Message, estimate_tokens, required_message
 from app.domain.outbox import add_step, dispatch_soon
 from app.domain.queries import load_config
+from app.domain.scratchpad import add_page, embed_page
 from app.ports import (
     LLMResponse,
     ProviderRateLimitedError,
@@ -432,6 +433,8 @@ def _commit_tool(
 ) -> StepOutcome:
     pending = claim.pending_tool
     assert pending is not None  # noqa: S101
+    # The whole page goes in the store, even though the model only reads a truncated copy of it.
+    page = embed_page(deps.embedder, pending.name, outcome.content, outcome.is_error)
     with deps.session_factory() as session:
         branch = _locked_if_current(session, message, claim)
         if branch is None:
@@ -448,6 +451,7 @@ def _commit_tool(
             },
             claim.turns_used,
         )
+        add_page(session, branch.id, result.id, page)
         state = session.get_one(BranchState, branch.id)
         state.messages = [*state.messages, required_message(result)]
         state.head_node_id = result.id

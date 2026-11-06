@@ -28,7 +28,7 @@ from app.api.stream import event_stream, read_events
 from app.bootstrap import Runtime, get_runtime
 from app.db.models import NON_COMPLETED_STATUSES, Branch, Node, NodeType, Tree, User
 from app.domain.compare import BranchesNotComparableError, compare_branches
-from app.domain.config import AGENT_TOOLS, TreeConfig
+from app.domain.config import TreeConfig, tools_for
 from app.domain.engine import cancel_branch, start_task
 from app.domain.forking import (
     InvalidEditError,
@@ -233,7 +233,7 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
         if problem:
             raise HTTPException(422, problem)
         provider = choose_provider(rt, principal, body.provider)
-        config = TreeConfig(tools=AGENT_TOOLS, provider=provider, model=body.model)
+        config = TreeConfig(tools=tools_for(provider), provider=provider, model=body.model)
         tree_id, branch_id = start_task(rt.deps, principal.user_id, task, config)
         return Created(tree_id=tree_id, branch_id=branch_id)
 
