@@ -1,5 +1,26 @@
-import { describe, expect, it } from "vitest";
-import { errorMessage } from "./api";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { api, errorMessage } from "./api";
+
+const respond = (status: number, body: unknown = []) =>
+  new Response(JSON.stringify(body), { status });
+
+describe("request", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("repeats a read once after a server error", async () => {
+    const fetchStub = vi.fn().mockResolvedValueOnce(respond(500)).mockResolvedValueOnce(respond(200));
+    vi.stubGlobal("fetch", fetchStub);
+    await expect(api.trees()).resolves.toEqual([]);
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+  });
+
+  it("never repeats a write, so an edit can't create two branches", async () => {
+    const fetchStub = vi.fn().mockResolvedValue(respond(500));
+    vi.stubGlobal("fetch", fetchStub);
+    await expect(api.fork("node", { text: "x" })).rejects.toThrow();
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("errorMessage", () => {
   it("reads both shapes FastAPI uses", () => {

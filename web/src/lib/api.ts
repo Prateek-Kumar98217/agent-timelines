@@ -21,13 +21,21 @@ export function errorMessage(body: unknown, status: number): string {
   return `The server returned an error (${status}).`;
 }
 
+const send = (path: string, init?: RequestInit): Promise<Response> =>
+  fetch(path, {
+    ...init,
+    headers: init?.body ? { "Content-Type": "application/json" } : undefined,
+  });
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(path, {
-      ...init,
-      headers: init?.body ? { "Content-Type": "application/json" } : undefined,
-    });
+    response = await send(path, init);
+    // The proxy can reuse a connection the API just closed after a live stream, which fails with a
+    // 500 before reaching the API. A read is safe to repeat. A write isn't, so it reports the error.
+    if (response.status >= 500 && (init?.method ?? "GET") === "GET") {
+      response = await send(path, init);
+    }
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     throw new ApiError("Can't reach the API. Check that the stack is running.", 0);
