@@ -84,6 +84,7 @@ FAILURE_CHECKS = [
     "30 of 40 simultaneous forks accepted at a limit of 30, with the other 10 refused",
     "A worker killed mid-step: the branch resumed with no duplicate or missing steps",
     "The message broker stopped: nothing lost, and the branch finished after it returned",
+    "The message broker killed during a send: the step wasn't lost",
     "A waiting branch: no queue message and no active worker",
     "The browser container: no route to internal services, no secrets, no access to agent tools",
     "A saved API key: absent from every log, trace and metric",
@@ -279,9 +280,11 @@ def load_section(load: list[dict[str, Any]]) -> str:
             rows,
         )
     }
-  <p>Under overload the system refuses new work rather than falling behind: forks stay fast while
-  the refusal rate climbs. p95 values come from histogram buckets, so they can overstate. Cache
-  hits are for the scripted model's knowledge base searches.</p>
+  <p>Under overload the system refuses new work rather than falling behind: the refusal rate climbs
+  while forks stay under 200 ms at p95. These numbers include waiting for the broker to confirm
+  each send. That added about 4 ms on average with one user, and about 140 ms to the p95 at worst.
+  p95 values come from histogram buckets, so they can overstate. Cache hits are for
+  the scripted model's knowledge base searches.</p>
 </section>"""
 
 
@@ -321,6 +324,10 @@ def tests_section(tests: dict[str, int]) -> str:
   <p class="finding"><strong>The log check failed on GitHub.</strong> Loki refuses all writes once
   its disk is 90% full, and it reports this as "Ingester is shutting down". Forcing that limit
   locally reproduced the same failure. The job now frees disk space before it builds.</p>
+  <p class="finding"><strong>CI found a real bug.</strong> A step was marked as sent without the
+  broker confirming it, so a broker dying at that moment lost the message and left the branch stuck
+  for 5 minutes. Sends now wait for confirmation, which is why forks in the load test above got
+  slower under heavy load. A request can now wait about 6 seconds if the broker stops answering.</p>
   <h3>Live checks with the real model</h3>
   <p>Run once by hand on the full stack, with <code>qwen3:4b</code>.</p>
   <div class="scroll"><table><tbody>{live}</tbody></table></div>

@@ -26,6 +26,7 @@ tested, along with what closed it.
 | The convergence threshold comes from one model on 8 tasks | It may not suit other models, so it's a setting | Accepted |
 | The judge scores only 6 fixed answers, by hand, never in CI or on a schedule | It checks the fact checks on a small sample, and the rest of task success is deterministic | Accepted |
 | Loki stops storing logs without warning once its disk is 90% full | Logs go missing while the rest of the stack looks healthy. This broke the log check on GitHub, so that job now frees disk space first. It also applies to any machine that's nearly full | Accepted |
+| A request can wait about 6 seconds when the broker has frozen rather than died | It then returns normally and the sweeper sends the step later, but the caller waits that long | Accepted |
 | External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
 | The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
 
@@ -33,6 +34,7 @@ tested, along with what closed it.
 
 | Limitation | Closed by | Milestone |
 |---|---|---|
+| A step could be lost if the broker died during a send, leaving its branch stuck for 5 minutes | Sends wait for the broker's confirmation, and the outbox row stays until then. Found by CI, and now a smoke check | 12 |
 | The load test hadn't been rerun after moving to tool result forks | Rerun in full, and the report uses the new numbers | 12 |
 | CI had never run on GitHub | The repo now has a remote. That first run exposed two setup errors, a setup-uv version that doesn't exist and no Python pin, both fixed | 12 |
 | Hidden model thinking counts toward the token budget | Raised the branch budget to 40,000 tokens. None of the 136 experiment branches ran out | 8 |

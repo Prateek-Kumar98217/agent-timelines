@@ -4,16 +4,16 @@ Each scenario ran for 90s on one laptop with the mock LLM at 0.5s per call and 4
 
 | Scenario | Users | Branch cap | Queue limit | Accepted | Rejected | Rejection rate | Fork mean / p95 | Queue wait mean / p95 | LLM step mean / p95 | Tool step mean / p95 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| one_user | 1 | 50 | 100 | 74 | 0 | 0% | 0.023s / 0.041s | 0.011s / 0.024s | 0.522s / 0.975s | 0.055s / 0.105s |
-| five_users | 5 | 50 | 100 | 319 | 65 | 17% | 0.026s / 0.048s | 3.154s / 4.834s | 0.523s / 0.975s | 0.051s / 0.095s |
-| twenty_users | 20 | 50 | 100 | 352 | 1156 | 77% | 0.029s / 0.049s | 3.998s / 6.330s | 0.522s / 0.975s | 0.047s / 0.093s |
-| overload_user_cap | 60 | 20 | 100 | 411 | 2490 | 86% | 0.033s / 0.050s | 1.523s / 2.423s | 0.521s / 0.975s | 0.046s / 0.089s |
-| overload_queue_limit | 60 | 500 | 25 | 403 | 2549 | 86% | 0.032s / 0.053s | 2.362s / 4.676s | 0.521s / 0.975s | 0.045s / 0.087s |
+| one_user | 1 | 50 | 100 | 70 | 0 | 0% | 0.027s / 0.048s | 0.012s / 0.024s | 0.526s / 0.975s | 0.060s / 0.110s |
+| five_users | 5 | 50 | 100 | 319 | 66 | 17% | 0.033s / 0.063s | 3.443s / 4.840s | 0.527s / 0.975s | 0.058s / 0.097s |
+| twenty_users | 20 | 50 | 100 | 357 | 1107 | 76% | 0.040s / 0.091s | 4.149s / 8.091s | 0.530s / 0.975s | 0.056s / 0.098s |
+| overload_user_cap | 60 | 20 | 100 | 403 | 2425 | 86% | 0.061s / 0.192s | 1.571s / 2.422s | 0.528s / 0.975s | 0.060s / 0.180s |
+| overload_queue_limit | 60 | 500 | 25 | 361 | 2653 | 88% | 0.050s / 0.100s | 2.396s / 4.716s | 0.536s / 0.975s | 0.061s / 0.145s |
 
 **Rejections by reason:**
 
 - one_user: none
-- five_users: {'active_branches': 65}
-- twenty_users: {'active_branches': 806, 'rate_limited': 351}
-- overload_user_cap: {'active_branches': 773, 'rate_limited': 1719}
-- overload_queue_limit: {'queue_full': 857, 'rate_limited': 1694}
+- five_users: {'active_branches': 66}
+- twenty_users: {'active_branches': 692, 'rate_limited': 416}
+- overload_user_cap: {'active_branches': 838, 'rate_limited': 1589}
+- overload_queue_limit: {'queue_full': 1177, 'rate_limited': 1479}
