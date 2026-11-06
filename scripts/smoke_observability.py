@@ -45,9 +45,9 @@ def drive_traffic() -> None:
         return all(statuses[item] in FINISHED for item in ids)
 
     retry("the main branch", lambda: finished([branch_id]))
-    user_msg = next(n for n in tree()["nodes"] if n["type"] == "user_msg")
+    result = next(n for n in tree()["nodes"] if n["type"] == "tool_result")
     fork = client.post(
-        f"{API}/api/nodes/{user_msg['id']}/fork", json={"edit": {"text": "Observability fork"}}
+        f"{API}/api/nodes/{result['id']}/fork", json={"edit": {"content": "Observability fork"}}
     ).json()["id"]
     retry("the fork", lambda: finished([fork]))
     # Identical searches, so the tool cache gets hits as well as misses.

@@ -28,6 +28,13 @@ class ProviderOut(BaseModel):
     key_last_four: str | None
 
 
+class LimitsOut(BaseModel):
+    role: str
+    active_branches: int
+    max_active_branches: int
+    max_turns: int
+
+
 class ForkRequest(BaseModel):
     edit: dict[str, Any]
 
@@ -97,6 +104,7 @@ class BranchSummaryOut(BaseModel):
     turns_used: int
     input_tokens: int
     output_tokens: int
+    path_tokens: int
     final_text: str | None
     tool_calls: list[str]
     scores: dict[str, float]

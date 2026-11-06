@@ -18,7 +18,7 @@ class Visitor(HttpUser):
     wait_time = between(0.2, 1.0)
 
     def on_start(self) -> None:
-        self.user_nodes: list[str] = []
+        self.result_nodes: list[str] = []
         self.tree_ids: list[str] = []
 
     def _accept_rejections(self, response) -> None:  # type: ignore[no-untyped-def]
@@ -39,11 +39,11 @@ class Visitor(HttpUser):
 
     @task(3)
     def fork(self) -> None:
-        if not self.user_nodes:
+        if not self.result_nodes:
             return
         with self.client.post(
-            f"/api/nodes/{random.choice(self.user_nodes)}/fork",
-            json={"edit": {"text": f"Forked question {random.randint(1, 1_000_000)}"}},
+            f"/api/nodes/{random.choice(self.result_nodes)}/fork",
+            json={"edit": {"content": f"Edited result {random.randint(1, 1_000_000)}"}},
             catch_response=True,
             name="POST /api/nodes/:id/fork",
         ) as response:
@@ -57,7 +57,7 @@ class Visitor(HttpUser):
             f"/api/trees/{random.choice(self.tree_ids[-5:])}", name="GET /api/trees/:id"
         )
         if response.status_code == 200:
-            self.user_nodes += [
-                node["id"] for node in response.json()["nodes"] if node["type"] == "user_msg"
+            self.result_nodes += [
+                node["id"] for node in response.json()["nodes"] if node["type"] == "tool_result"
             ]
-            self.user_nodes = self.user_nodes[-50:]
+            self.result_nodes = self.result_nodes[-50:]

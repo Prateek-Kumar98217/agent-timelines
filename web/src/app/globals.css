@@ -1,0 +1,1062 @@
+:root {
+  color-scheme: dark;
+  --black: #000000;
+  --surface: #141414;
+  --surface-raised: #1f1f1f;
+  --line: #3a3a3a;
+  --text: #f2efea;
+  --text-soft: #b0aba3;
+  --orange: #ff7a00;
+  --orange-deep: #e06a00;
+  --orange-wash: #2e1a06;
+  --task: #f2efea;
+  --you: #c4a7ff;
+  --model: #62c6ff;
+  --call: #3ddc97;
+  --result: #f2d544;
+  --lamp-green: #3ddc97;
+  --lamp-amber: #ffb020;
+  --lamp-red: #ff5a5a;
+  --lamp-grey: #807b74;
+  --mark-a: #5c1f1f;
+  --mark-b: #17492f;
+  --text-sm: 0.8125rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--black);
+  color: var(--text);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: var(--text-base);
+  line-height: 1.45;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--orange);
+}
+
+:focus-visible {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.875rem;
+}
+
+.prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quiet {
+  color: var(--text-soft);
+}
+
+.small {
+  font-size: var(--text-sm);
+}
+
+/* Controls */
+.button {
+  display: inline-block;
+  flex: none;
+  padding: 0.5rem 0.9rem 0.4rem;
+  border: 1.5px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--text);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.button-primary {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--black);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--orange-deep);
+  border-color: var(--orange-deep);
+}
+
+.field {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1.5px solid var(--line);
+  border-radius: 4px;
+  background: var(--black);
+}
+
+.field:focus {
+  border-color: var(--orange);
+}
+
+.field::placeholder {
+  color: #8b867e;
+}
+
+textarea.field {
+  resize: vertical;
+  min-height: 7rem;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 700;
+}
+
+.error {
+  padding: 0.5rem 0.65rem;
+  border-left: 4px solid var(--lamp-red);
+  background: #2b1212;
+}
+
+.notice {
+  padding: 0.5rem 0.65rem;
+  border-left: 4px solid var(--orange);
+  background: var(--orange-wash);
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Status lamps */
+.lamp {
+  display: inline-block;
+  flex: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--lamp-grey);
+}
+
+.lamp-queued,
+.lamp-waiting {
+  background: transparent;
+  box-shadow: inset 0 0 0 3px var(--lamp-amber);
+}
+
+.lamp-running {
+  background: var(--lamp-amber);
+}
+
+.lamp-completed {
+  background: var(--lamp-green);
+}
+
+.lamp-failed {
+  background: var(--lamp-red);
+}
+
+.lamp-capped,
+.lamp-budget_exhausted {
+  background: linear-gradient(90deg, var(--lamp-red) 50%, var(--lamp-amber) 50%);
+}
+
+/* Home */
+.home {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 0 1rem 4rem;
+}
+
+.home-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 1rem 0;
+}
+
+.wordmark {
+  flex: none;
+  color: var(--orange);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.home-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 30rem);
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.hero-track {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.hero-track text {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.composer {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.composer-title {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.composer textarea.field {
+  min-height: 11rem;
+  background: var(--surface);
+}
+
+.composer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.composer-row > label {
+  flex: 1 1 11rem;
+}
+
+.tree-section {
+  margin-top: 2.5rem;
+}
+
+.tree-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.tree-section h2 {
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.tree-search {
+  width: min(20rem, 100%);
+}
+
+.tree-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 2px solid var(--orange);
+}
+
+.tree-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1.5rem;
+  padding: 0.7rem 0 0.55rem;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+}
+
+.tree-row:hover .tree-task {
+  text-decoration: underline;
+}
+
+.tree-task {
+  display: -webkit-box;
+  max-width: 70ch;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.tree-meta {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* What this user is allowed. One pip per allowed item, lit when it's in use. */
+.limits {
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1.5rem;
+  padding: 0.35rem 1rem 0.25rem;
+  background: var(--black);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+
+.home .limits {
+  margin-bottom: 1.25rem;
+  padding: 0.35rem 0 0.25rem;
+}
+
+.limits-role {
+  font-weight: 800;
+}
+
+.limit {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.5rem;
+}
+
+.limit-full b {
+  color: var(--lamp-red);
+}
+
+.pips {
+  display: inline-flex;
+  gap: 3px;
+  margin-top: -2px;
+}
+
+.pip {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--text-soft);
+  border-radius: 2px;
+}
+
+.pip-on {
+  background: var(--orange);
+  border-color: var(--orange);
+}
+
+.limit-full .pip-on {
+  background: var(--lamp-red);
+  border-color: var(--lamp-red);
+}
+
+/* Workspace: the map fills the screen and everything else slides over it. */
+.workspace {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+/* Clip, not hidden: focusing a button in a sliding sidebar must not be able to scroll the page. */
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+}
+
+.topbar {
+  z-index: 20;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.55rem 1rem 0.45rem;
+  background: var(--black);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar-task {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: inherit;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.connection {
+  white-space: nowrap;
+}
+
+.map {
+  height: 100%;
+  background: var(--black);
+}
+
+.map .react-flow__attribution {
+  background: transparent;
+}
+
+.map .react-flow__attribution a {
+  color: var(--text-soft);
+}
+
+.map .react-flow__controls-button {
+  width: 30px;
+  height: 30px;
+  background: var(--surface-raised);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  fill: var(--text);
+  color: var(--text);
+}
+
+.map .react-flow__controls-button svg {
+  fill: var(--text);
+}
+
+.map .react-flow__minimap {
+  border: 1px solid var(--line);
+}
+
+/* Step blocks. Each type sets one colour, which its tag and edge take. */
+.block {
+  --kind: var(--line);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 0.5rem 0.65rem 0.45rem;
+  border: 1.5px solid var(--line);
+  border-left: 5px solid var(--kind);
+  border-radius: 4px;
+  background: var(--surface);
+  text-align: left;
+  font-size: var(--text-sm);
+  line-height: 1.25;
+  /* Keeps letter spacing even when the map is zoomed. */
+  text-rendering: geometricPrecision;
+  cursor: pointer;
+}
+
+.block:hover {
+  border-top-color: var(--text-soft);
+  border-right-color: var(--text-soft);
+  border-bottom-color: var(--text-soft);
+}
+
+.block-task {
+  --kind: var(--task);
+}
+
+.block-you {
+  --kind: var(--you);
+}
+
+.block-model {
+  --kind: var(--model);
+}
+
+.block-call {
+  --kind: var(--call);
+}
+
+.block-result {
+  --kind: var(--result);
+}
+
+/* Answers invert, so outcomes stand out at any zoom. */
+.block-answer {
+  --kind: var(--orange);
+  background: var(--text);
+  border-color: var(--text);
+  border-left-color: var(--text);
+  color: var(--black);
+}
+
+.block-answer .tag {
+  background: var(--black);
+  color: var(--text);
+}
+
+.block-answer .block-turn,
+.block-answer .block-tokens {
+  color: #4a4640;
+}
+
+.block-edited {
+  border-color: var(--orange);
+  border-left-color: var(--kind);
+  box-shadow: 0 0 0 1px var(--orange);
+}
+
+.block-answer.block-edited {
+  border-left-color: var(--orange);
+}
+
+.block-selected {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.block-dim {
+  opacity: 0.5;
+}
+
+.block-dim:hover,
+.block-dim:focus-visible {
+  opacity: 1;
+}
+
+.block-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tag {
+  flex: none;
+  padding: 0.1rem 0.45rem 0;
+  border-radius: 999px;
+  background: var(--kind);
+  color: var(--black);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.block .tag-edited {
+  background: var(--orange);
+  color: var(--black);
+}
+
+.block .tag-error {
+  background: var(--lamp-red);
+  color: var(--black);
+}
+
+.block-turn {
+  margin-left: auto;
+  color: var(--text-soft);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.block-heading {
+  flex: none;
+  overflow: hidden;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.block-summary {
+  display: -webkit-box;
+  min-height: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
+}
+
+.block-summary-short {
+  -webkit-line-clamp: 2;
+}
+
+.block-tokens {
+  margin-top: auto;
+  color: var(--text-soft);
+  font-size: 0.75rem;
+}
+
+.map .flow-handle {
+  visibility: hidden;
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+}
+
+/* Arrows */
+/* With a path length of 1, this dash covers the whole line, and an entrance slides it into place. */
+.arrow-line {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
+  stroke-dasharray: 1;
+}
+
+.arrow-head {
+  fill: var(--line);
+}
+
+.arrow-path .arrow-line {
+  stroke: var(--text);
+}
+
+.arrow-path .arrow-head {
+  fill: var(--text);
+}
+
+.arrow-edit .arrow-line {
+  stroke: var(--orange);
+  stroke-width: 2.5;
+}
+
+.arrow-edit .arrow-head {
+  fill: var(--orange);
+}
+
+/* The end of each branch */
+.terminus {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+  padding: 0 0.6rem;
+  border: 1.5px dashed var(--line);
+  border-radius: 4px;
+  text-rendering: geometricPrecision;
+  background: var(--black);
+  text-align: left;
+  font-size: var(--text-sm);
+  line-height: 1.15;
+  cursor: pointer;
+}
+
+.terminus:hover {
+  border-color: var(--text-soft);
+}
+
+.terminus-selected {
+  border: 1.5px solid var(--orange);
+}
+
+.terminus-text {
+  min-width: 0;
+}
+
+.terminus-text b {
+  display: block;
+}
+
+.terminus-text span {
+  display: block;
+  overflow: hidden;
+  color: var(--text-soft);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* React Flow turns pointer events off on nodes it can't select. These buttons do their own work. */
+.map .block,
+.map .terminus {
+  pointer-events: all;
+}
+
+/* Sliding sidebars */
+.sidebar {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  bottom: 0;
+  width: min(27rem, 100%);
+  overflow-y: auto;
+  padding: 1rem;
+  background: var(--surface);
+  visibility: hidden;
+  transition:
+    transform 240ms ease-out,
+    visibility 240ms;
+}
+
+.sidebar-left {
+  left: 0;
+  width: min(24rem, 100%);
+  border-right: 2px solid var(--orange);
+  transform: translateX(-100%);
+}
+
+.sidebar-right {
+  right: 0;
+  border-left: 2px solid var(--orange);
+  transform: translateX(100%);
+}
+
+.sidebar-wide {
+  right: 0;
+  z-index: 40;
+  width: min(68rem, 100%);
+  border-left: 2px solid var(--orange);
+  transform: translateX(100%);
+}
+
+.sidebar-open {
+  transform: none;
+  visibility: visible;
+}
+
+.sidebar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.sidebar-head h2 {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.inspector-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.inspector-body {
+  max-height: 14rem;
+  margin: 0.75rem 0;
+  overflow-y: auto;
+  padding: 0.6rem 0.7rem;
+  background: var(--black);
+  border-left: 3px solid var(--line);
+}
+
+.inspector-body-edited {
+  border-left-color: var(--orange);
+}
+
+.edit-form {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 2px solid var(--orange);
+}
+
+.edit-form h3 {
+  font-size: var(--text-base);
+  font-weight: 800;
+  color: var(--orange);
+}
+
+.button-edit {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--black);
+}
+
+.button-edit:hover:not(:disabled) {
+  background: var(--orange-deep);
+  border-color: var(--orange-deep);
+}
+
+.choice {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.choice label {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+/* Branch list */
+.compare-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.branch-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.branch-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.55rem 0.35rem 0.45rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.branch-row input {
+  margin-top: 0.2rem;
+}
+
+.branch-row-selected {
+  background: var(--orange-wash);
+}
+
+.branch-row-main {
+  min-width: 0;
+}
+
+.branch-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.branch-name:hover {
+  text-decoration: underline;
+}
+
+/* Compare */
+.compare-inner {
+  max-width: 76rem;
+  margin: 0 auto;
+}
+
+.compare-inner .sidebar-head h2 {
+  font-size: var(--text-xl);
+  line-height: 1.15;
+}
+
+.compare-verdict {
+  max-width: 70ch;
+  margin-bottom: 1.25rem;
+}
+
+.compare-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.compare-side h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: var(--text-base);
+  font-weight: 800;
+}
+
+.compare-answer {
+  margin: 0.4rem 0 0;
+  padding: 0.65rem 0.75rem;
+  background: var(--black);
+  border-left: 3px solid var(--line);
+}
+
+.diff-a {
+  background: var(--mark-a);
+}
+
+.diff-b {
+  background: var(--mark-b);
+}
+
+.compare-table {
+  width: 100%;
+  margin-top: 1.5rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.compare-table th:first-child {
+  width: 9rem;
+}
+
+.compare-table ol {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 0.4rem 0.6rem 0.3rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.compare-table thead th {
+  border-bottom: 2px solid var(--orange);
+}
+
+.keys {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 0 1rem 4rem;
+}
+
+.keys h1 {
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+
+.key-row {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.key-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.key-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.centered-state {
+  max-width: 34rem;
+  margin: 20dvh auto 0;
+  padding: 0 1rem;
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+
+@media (max-width: 62rem) {
+  .home-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero-track {
+    display: none;
+  }
+
+  .compare-sides {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tree-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.15rem;
+  }
+
+  .tree-meta {
+    text-align: left;
+  }
+}
+
+@media (max-width: 40rem) {
+  .topbar {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .topbar-task {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .topbar .connection {
+    flex-basis: 100%;
+    order: 4;
+  }
+
+  .map .react-flow__minimap {
+    display: none;
+  }
+}
+
+/* Motion only plays when it's welcome, so the resting styles above are always complete. */
+@media (prefers-reduced-motion: no-preference) {
+  .lamp-running {
+    animation: lamp-pulse 1.4s ease-in-out infinite;
+  }
+
+  .hero-fork {
+    stroke-dasharray: 1;
+    animation: arrow-draw 900ms ease-out 400ms backwards;
+  }
+
+  .hero-late {
+    animation: arrow-head-in 300ms linear 1200ms backwards;
+  }
+}
+
+@keyframes lamp-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes block-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+}
+
+@keyframes arrow-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes arrow-head-in {
+  from {
+    opacity: 0;
+  }
+}

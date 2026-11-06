@@ -17,6 +17,7 @@ from app.api.schemas import (
     CreateTree,
     EventOut,
     ForkRequest,
+    LimitsOut,
     NodeOut,
     ProviderOut,
     SaveKey,
@@ -25,7 +26,7 @@ from app.api.schemas import (
 )
 from app.api.stream import event_stream, read_events
 from app.bootstrap import Runtime, get_runtime
-from app.db.models import Branch, Node, NodeType, Tree, User
+from app.db.models import NON_COMPLETED_STATUSES, Branch, Node, NodeType, Tree, User
 from app.domain.compare import BranchesNotComparableError, compare_branches
 from app.domain.config import AGENT_TOOLS, TreeConfig
 from app.domain.engine import cancel_branch, start_task
@@ -42,6 +43,9 @@ from app.domain.limits import AdmissionRejectedError
 from app.domain.task_gate import task_problem
 from app.ports import Principal
 
+# The first message holds the task, and a tree's task never changes. The engine can still fork from
+# it, because the edit sensitivity evaluation measures that directly, but no user can reach it.
+TASK_IS_FIXED = "the task can't be changed; edit a later step instead"
 MIN_KEY_CHARS = 8
 MAX_KEY_CHARS = 500
 
@@ -177,6 +181,25 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/api/limits")
+    def limits(rt: RuntimeDep, principal: PrincipalDep) -> LimitsOut:
+        with rt.session_factory() as session:
+            kind = session.get_one(User, principal.user_id).kind
+            active = session.execute(
+                select(func.count())
+                .select_from(Branch)
+                .where(
+                    Branch.owner_id == principal.user_id,
+                    Branch.status.in_(NON_COMPLETED_STATUSES),
+                )
+            ).scalar_one()
+        return LimitsOut(
+            role=kind,
+            active_branches=active,
+            max_active_branches=rt.deps.limits.for_kind(kind).active_branches,
+            max_turns=TreeConfig().turn_cap,
+        )
+
     @app.get("/api/providers")
     def providers(rt: RuntimeDep, principal: PrincipalDep) -> list[ProviderOut]:
         return list_providers(rt, principal)
@@ -262,6 +285,8 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
             if node is None:
                 raise HTTPException(404, f"node {node_id} not found")
             require_tree(session, node.tree_id, principal)
+            if node.type == NodeType.USER_MSG.value:
+                raise HTTPException(409, TASK_IS_FIXED)
         try:
             branch_id = fork_from_edit(rt.deps, principal.user_id, node_id, body.edit)
         except NodeNotFoundError as exc:
