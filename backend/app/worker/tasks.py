@@ -1,4 +1,4 @@
-"""Celery tasks. All logic lives in the engine, so the deployed Lambda runs the same code."""
+"""Celery tasks. All logic lives in the engine."""
 
 from celery import shared_task
 

@@ -3,8 +3,9 @@
 A branching workbench for agent runs. Give a small agent a short task, edit any step of its run, and
 compare what happens on the new branch. What already ran never changes.
 
-**Test results:** http://127.0.0.1:3001/report.html once the stack is running. Every result there
-comes from local tests. The deployed build isn't built.
+This runs only on your own machine, and there is no hosted version.
+
+**Test results:** http://127.0.0.1:3001/report.html once the stack is running.
 
 ## What it does
 
@@ -35,6 +36,20 @@ docker compose up -d --build      # start everything
   queue wait, refusals, cache hits, tokens and outcomes.
 - **Models:** uncomment the Ollama lines in `.env` to run on your GPU, or add a Groq or Gemini key on
   the app's API keys page.
+
+## Your keys
+
+You add API keys on the app's API keys page. They stay on your machine:
+
+- They're encrypted with AES-GCM before they reach the database, using a master key generated on
+  first start and kept in a local Docker volume.
+- A key only leaves your machine when a task runs on that provider, and goes only to that provider.
+- The API never returns a saved key, only its last four characters, and keys are kept out of logs,
+  traces and metrics.
+- Every port listens on `127.0.0.1` only, and the API refuses requests for any other domain, so a
+  website you visit can't reach it through your browser.
+
+The judge's `GEMINI_API_KEY` is separate. It stays in the git-ignored `.env`.
 
 ## Testing
 

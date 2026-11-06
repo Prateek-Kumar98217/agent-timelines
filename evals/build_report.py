@@ -3,7 +3,7 @@
     uv run --all-groups python evals/build_report.py --count-tests   # also recount the tests
     uv run --all-groups python evals/build_report.py
 
-Every test here ran locally. Nothing in the report comes from a deployed build.
+Every test here ran locally.
 """
 
 import argparse
@@ -88,6 +88,7 @@ FAILURE_CHECKS = [
     "A waiting branch: no queue message and no active worker",
     "The browser container: no route to internal services, no secrets, no access to agent tools",
     "A saved API key: absent from every log, trace and metric",
+    "A website pointing its domain at this machine: refused",
     "One trace across the API, worker and gateway, with all 12 dashboard panels returning data",
 ]
 
@@ -323,7 +324,8 @@ def tests_section(tests: dict[str, int]) -> str:
   <ul>{checks}</ul>
   <p class="finding"><strong>The log check failed on GitHub.</strong> Loki refuses all writes once
   its disk is 90% full, and it reports this as "Ingester is shutting down". Forcing that limit
-  locally reproduced the same failure. The job now frees disk space before it builds.</p>
+  locally reproduced the same failure. The job now frees disk space before it builds, and CI
+  passes on GitHub with this fix and the one below.</p>
   <p class="finding"><strong>CI found a real bug.</strong> A step was marked as sent without the
   broker confirming it, so a broker dying at that moment lost the message and left the branch stuck
   for 5 minutes. Sends now wait for confirmation, which is why forks in the load test above got
@@ -348,8 +350,7 @@ def limits_section(limitations: str) -> str:
     return f"""
 <section id="limits">
   <h2>Known limits</h2>
-  <p>What's still open, from <code>docs/LIMITATIONS.md</code>. Deferred items belong to the deployed
-  build, which isn't built yet.</p>
+  <p>What's still open, from <code>docs/LIMITATIONS.md</code>.</p>
   <div class="scroll"><table>
   <thead><tr><th scope=col>Limit</th><th scope=col>Status</th></tr></thead>
   <tbody>{"".join(rows)}</tbody></table></div>
@@ -426,7 +427,7 @@ def build(
 </nav>
 <h1>Test report</h1>
 <p>What was tested, how, and what it showed. <strong>Every result here comes from local tests.
-Nothing has been measured on a deployed build.</strong></p>
+</strong></p>
 <p class="meta">Built {esc(today)}. {esc(MACHINE)}.</p>
 <ul class="toc">
   <li><a href="#edits">Editing steps</a></li>

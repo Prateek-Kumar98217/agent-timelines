@@ -12,7 +12,6 @@ import traceback
 from collections.abc import Callable
 
 os.environ.setdefault("DEEPEVAL_TELEMETRY_OPT_OUT", "YES")
-os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
 
 
 def check_fastapi() -> None:
@@ -112,12 +111,6 @@ def check_otel() -> None:
     assert len(memory.get_finished_spans()) == 1
 
 
-def check_boto3() -> None:
-    import boto3
-
-    boto3.client("sqs", aws_access_key_id="x", aws_secret_access_key="y")  # noqa: S106
-
-
 def check_playwright_import() -> None:
     import playwright.sync_api  # noqa: F401
 
@@ -173,7 +166,6 @@ def main() -> int:
         check_crypto,
         check_mcp,
         check_otel,
-        check_boto3,
         check_playwright_import,
         check_fastembed_import,
         check_deepeval,

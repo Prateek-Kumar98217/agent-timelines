@@ -82,7 +82,7 @@ class User(Base):
 
 
 class ProviderKey(Base):
-    """A user's API key, encrypted. The local build only; the deployed build uses server keys."""
+    """A user's API key, encrypted, on this machine only."""
 
     __tablename__ = "provider_keys"
 
@@ -139,7 +139,6 @@ class Branch(Base):
     last_dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     lease_owner: Mapped[str | None] = mapped_column(String(64))
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

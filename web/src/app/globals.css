@@ -349,10 +349,6 @@ textarea.field {
   padding: 0.35rem 0 0.25rem;
 }
 
-.limits-role {
-  font-weight: 800;
-}
-
 .limit {
   display: inline-flex;
   flex-wrap: wrap;

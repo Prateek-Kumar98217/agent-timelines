@@ -13,12 +13,6 @@ node_modules/
 .next/
 out/
 
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-*.tfvars
-
 # Secrets and local config
 .local/
 .env

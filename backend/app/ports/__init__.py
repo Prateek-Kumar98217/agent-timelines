@@ -1,7 +1,7 @@
 """Interfaces between the core application and everything that differs per build.
 
 The core only imports from this module. `app.factory` picks an implementation for each port
-from the active profile, so the local, deployed and test builds share one codebase.
+from the active profile, so the local and test builds share one codebase.
 """
 
 from collections.abc import AsyncIterator, Sequence
@@ -147,8 +147,6 @@ class RateLimiter(Protocol):
 
 class PrincipalKind(StrEnum):
     LOCAL = "local"
-    GUEST = "guest"
-    USER = "user"
 
 
 @dataclass(frozen=True)

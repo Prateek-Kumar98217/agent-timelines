@@ -5,9 +5,11 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.adapters.llm import HOSTED_PROVIDERS, OLLAMA_DEFAULT_MODEL
 from app.api.schemas import (
@@ -54,6 +56,30 @@ from app.ports import Principal
 TASK_IS_FIXED = "the task can't be changed; edit a later step instead"
 MIN_KEY_CHARS = 8
 MAX_KEY_CHARS = 500
+
+
+# Nothing else may reach this API. A website can point its own domain at 127.0.0.1 (DNS rebinding)
+# to reach it from a visitor's browser and spend their saved keys, and its domain shows up here.
+ALLOWED_HOSTS = {"localhost", "127.0.0.1", "[::1]", "api", "testserver"}
+
+
+def host_name(value: str) -> str:
+    return value.rpartition(":")[0] if value.count(":") == 1 or "]:" in value else value
+
+
+class LocalOnlyMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            headers = Headers(scope=scope)
+            seen = [headers.get("host", ""), headers.get("x-forwarded-host", "")]
+            if any(value and host_name(value) not in ALLOWED_HOSTS for value in seen):
+                response = PlainTextResponse("This API only answers on this machine.", 400)
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 
 def keys_of(rt: Runtime) -> KeyStore:
@@ -135,6 +161,7 @@ def require_branch(session: Session, branch_id: UUID, principal: Principal) -> B
 def create_app(runtime: Runtime | None = None) -> FastAPI:
     """Build the app. Tests pass a runtime, and otherwise it's created on first use."""
     app = FastAPI(title="agent-timelines")
+    app.add_middleware(LocalOnlyMiddleware)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -200,7 +227,6 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
                 )
             ).scalar_one()
         return LimitsOut(
-            role=kind,
             active_branches=active,
             max_active_branches=rt.deps.limits.for_kind(kind).active_branches,
             max_turns=TreeConfig().turn_cap,

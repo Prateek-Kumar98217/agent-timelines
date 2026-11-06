@@ -36,7 +36,7 @@ SEARCH = ToolSpec(
 GENEROUS_LIMITS = Limits(
     {
         kind: UserLimits(10_000, 10_000, 100_000_000, writes_per_minute=10_000)
-        for kind in ("local", "user", "guest")
+        for kind in ("local",)
     },
     max_queued_branches=10_000,
 )

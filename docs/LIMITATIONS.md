@@ -1,7 +1,6 @@
 # Known limitations
 
-Local development comes first. "Deferred" means the item needs an account and waits until deployment
-work resumes.
+This project runs only on your own machine. There is no hosted version.
 
 Open gaps, each with the milestone that closes it. An item moves to **Closed** once it's fixed and
 tested, along with what closed it.
@@ -11,12 +10,10 @@ tested, along with what closed it.
 | Limitation | Risk until closed | Closes in |
 |---|---|---|
 | Groq and Gemini are tested against a local stub, never a live key | A provider quirk could surface on first use, and their default model names are unverified | When a key is added |
-| SearXNG depends on upstream engines that can rate-limit or block it, and their terms may restrict automated use | `web_search` can fail or get worse without warning; the agent sees a tool error | Accepted for local use, revisit before deployment |
+| SearXNG depends on upstream engines that can rate-limit or block it, and their terms may restrict automated use | `web_search` can fail or get worse without warning; the agent sees a tool error | Accepted |
 | The task gate is a text check, so it has gaps and can wrongly refuse | Out-of-scope tasks can get through, though turn and token limits still bound their cost | Accepted |
-| Guest and signed-in limits are defined, but nothing uses them yet: no demo task, guest sessions, IP limits or fork expiry | These only matter for the public demo | Deferred |
 | A DNS answer can change between the browser's URL check and its request | A page could reach a private address, so the browser container gets no secrets and no route to the database, broker or API. It can reach the gateway, whose tools each require a signed token | Accepted |
 | Traces stop at the gateway, with no spans inside the browser service or SearXNG | Slow page fetches show up as one long tool span | Accepted |
-| The web app proxies `/api` through a Next.js server and has no sign-in, guest or demo screens | The deployed build needs a static export, a configurable API address and these flows, and its live updates can't use this event stream as is, because `EventSource` can't send a token | Deferred |
 | The Next.js proxy can occasionally return a 500 when it reuses a connection the API closed after a live stream | Reads and the live stream recover by themselves, but a write such as creating a branch shows the error and needs another click | Accepted |
 | Live updates in the browser tests fall back to the stream's 5-second poll | The tests prove updates arrive, not how quickly | Accepted |
 | A small model may answer from a fetched page without ever calling `task_search` | The store is there but goes unused on short tasks. In the live check `qwen3:4b` skipped it even when the task asked for it | Accepted |
@@ -27,8 +24,7 @@ tested, along with what closed it.
 | The judge scores only 6 fixed answers, by hand, never in CI or on a schedule | It checks the fact checks on a small sample, and the rest of task success is deterministic | Accepted |
 | Loki stops storing logs without warning once its disk is 90% full | Logs go missing while the rest of the stack looks healthy. This broke the log check on GitHub, so that job now frees disk space first. It also applies to any machine that's nearly full | Accepted |
 | A request can wait about 6 seconds when the broker has frozen rather than died | It then returns normally and the sweeper sends the step later, but the caller waits that long | Accepted |
-| External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
-| The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
+| Cost figures come from third-party price trackers | Real provider prices may differ, so they're labelled as equivalent cost only | Accepted |
 
 ## Closed
 

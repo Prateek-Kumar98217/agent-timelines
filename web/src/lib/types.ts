@@ -100,7 +100,6 @@ export interface Comparison {
 }
 
 export interface Limits {
-  role: string;
   active_branches: number;
   max_active_branches: number;
   max_turns: number;
