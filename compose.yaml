@@ -225,6 +225,10 @@ services:
 
   observability:
     image: grafana/otel-lgtm:0.39.0
+    environment:
+      # This image hides Loki's and the collector's output unless asked.
+      ENABLE_LOGS_LOKI: ${OBSERVABILITY_DEBUG_LOGS:-false}
+      ENABLE_LOGS_OTELCOL: ${OBSERVABILITY_DEBUG_LOGS:-false}
     ports:
       - "127.0.0.1:3000:3000"
       - "127.0.0.1:3100:3100"

@@ -4,9 +4,9 @@ const LIVE_TIMEOUT = 30_000;
 
 let counter = 0;
 
-async function startTask(page: Page): Promise<string> {
+async function startTask(page: Page, marker = ""): Promise<string> {
   counter += 1;
-  const task = `Check fact number ${counter} about the Apollo programme`;
+  const task = `Check fact number ${counter} about the Apollo programme ${marker}`.trim();
   await page.goto("/");
   await page.getByLabel("What should the agent work out?").fill(task);
   await expect(page.getByLabel("Provider")).toHaveValue(/.+/);
@@ -118,6 +118,69 @@ test("compare counts the tokens of the whole path", async ({ page }) => {
   // A fork's own counter would leave out the steps before the split, so this must be larger.
   expect(total).toBeGreaterThan(fork.input_tokens + fork.output_tokens);
   await expect(row.getByRole("cell").nth(1)).toHaveText(total.toLocaleString());
+});
+
+test("a branch at its turn limit continues with a message and 4 more turns", async ({ page }) => {
+  await startTask(page, "[run long]");
+  const bar = page.locator(".limits");
+  await expect(bar).toContainText("12 of 12 turns");
+  await openBranches(page);
+  const row = branchRow(page, "Original run");
+  await row.getByRole("textbox", { name: "Your next message" }).fill("Check one more source");
+  await row.getByRole("button", { name: "Continue branch" }).click();
+
+  await expect(bar).toContainText("of 16 turns", { timeout: LIVE_TIMEOUT });
+  await expect(page.locator(".block-you")).toHaveCount(1, { timeout: LIVE_TIMEOUT });
+  await expect(page.locator(".block-you")).toContainText("Check one more source");
+  // It reaches the new limit, and the same choice is there again.
+  await expect(bar).toContainText("16 of 16 turns", { timeout: LIVE_TIMEOUT });
+  await expect(row.getByRole("button", { name: "Continue branch" })).toBeVisible({
+    timeout: LIVE_TIMEOUT,
+  });
+});
+
+test("a follow-up message can be edited into a new branch", async ({ page }) => {
+  await startTask(page, "[run long]");
+  await openBranches(page);
+  const row = branchRow(page, "Original run");
+  await row.getByRole("textbox", { name: "Your next message" }).fill("Check one more source");
+  await row.getByRole("button", { name: "Continue branch" }).click();
+  await expect(page.locator(".block-you")).toHaveCount(1, { timeout: LIVE_TIMEOUT });
+  await page.getByRole("button", { name: "Close branches" }).click();
+  await showWholeMap(page);
+  await page.locator(".block-you").click();
+  await page.getByRole("textbox", { name: "Message" }).fill("Check a different source");
+  await page.getByRole("button", { name: "Create branch" }).click();
+  await expect(page.locator(".block-you")).toHaveCount(2, { timeout: LIVE_TIMEOUT });
+});
+
+test("a branch that finished normally can't be continued", async ({ page }) => {
+  await startTask(page);
+  await openBranches(page);
+  await expect(branchRow(page, "Original run")).toContainText("Finished");
+  await expect(page.getByRole("button", { name: "Continue branch" })).toHaveCount(0);
+});
+
+test("the test report is on the site, and links back to the app", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Test report" }).click();
+  await expect(page).toHaveURL(/\/report\.html$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Test report" })).toBeVisible();
+  await expect(page.getByText("Every result here comes from local tests.")).toBeVisible();
+  for (const name of ["LLM as a judge", "Retrieval (recall@k)", "Load", "Known limits"]) {
+    await expect(page.getByRole("heading", { name })).toBeVisible();
+  }
+  await page.getByRole("link", { name: "Back to the app" }).click();
+  await expect(page.getByLabel("What should the agent work out?")).toBeVisible();
+});
+
+test("the report fits a phone without sideways scrolling", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto("/report.html");
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
 });
 
 test("every step shows its type and content without being opened", async ({ page }) => {

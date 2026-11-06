@@ -11,7 +11,11 @@ export default function HomePage() {
         <Link className="wordmark" href="/">
           agent-timelines
         </Link>
-        <Link href="/keys">API keys</Link>
+        <span className="home-links">
+          {/* A plain link, because the report is a static file rather than a page of this app. */}
+          <a href="/report.html">Test report</a>
+          <Link href="/keys">API keys</Link>
+        </span>
       </nav>
       <LimitsBar />
       <div className="home-top">

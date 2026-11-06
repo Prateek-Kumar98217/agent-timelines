@@ -9,6 +9,7 @@ from app.agent.graph import build_step_graph
 from app.db.session import SessionFactory
 from app.domain.limits import Limits
 from app.ports import (
+    Embedder,
     LiveEvents,
     LLMProvider,
     NoopTelemetry,
@@ -31,6 +32,7 @@ class EngineDeps:
     tools: ToolExecutor
     live_events: LiveEvents
     rate_limiter: RateLimiter
+    embedder: Embedder
     limits: Limits = field(default_factory=Limits)
     telemetry: Telemetry = field(default_factory=NoopTelemetry)
     now: Callable[[], datetime] = _utcnow

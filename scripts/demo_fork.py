@@ -11,7 +11,13 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, make_url, select, text
 
-from app.adapters.memory import FixtureTools, InlineQueue, MemoryLiveEvents, ScriptedLLM
+from app.adapters.memory import (
+    FixtureTools,
+    HashEmbedder,
+    InlineQueue,
+    MemoryLiveEvents,
+    ScriptedLLM,
+)
 from app.db.models import Branch, Node, User
 from app.db.session import SessionFactory, make_session_factory
 from app.domain.config import ToolSpec, TreeConfig
@@ -114,6 +120,7 @@ def main() -> None:
             ),
             tools=FixtureTools({"search": fake_search}),
             live_events=MemoryLiveEvents(),
+            embedder=HashEmbedder(),
         )
         with session_factory() as session:
             user = User(id=uuid4(), kind="local")

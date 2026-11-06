@@ -28,13 +28,15 @@ from app.db.models import (
     Tree,
     User,
 )
-from app.domain.config import TreeConfig
+from app.domain.config import EXTRA_TURNS_PER_MESSAGE, TreeConfig
 from app.domain.deps import EngineDeps
 from app.domain.events import append_event, publish_all
-from app.domain.limits import DAY_SECONDS, admit_tree, daily_tokens_left, tokens_key
+from app.domain.limits import DAY_SECONDS, admit_fork, admit_tree, daily_tokens_left, tokens_key
 from app.domain.messages import Message, estimate_tokens, required_message
 from app.domain.outbox import add_step, dispatch_soon
 from app.domain.queries import load_config
+from app.domain.scratchpad import add_page, embed_page
+from app.domain.task_gate import task_problem
 from app.ports import (
     LLMResponse,
     ProviderRateLimitedError,
@@ -77,6 +79,7 @@ class _Claim:
     messages: list[Message]
     head_node_id: UUID
     turns_used: int
+    turn_limit: int
     pending_tool: PendingTool | None
     attempt: int
 
@@ -156,6 +159,65 @@ def _start_task(
     return tree.id, branch.id
 
 
+class ContinueRefusedError(Exception):
+    """A branch can't continue. The message is safe to show."""
+
+
+def continue_branch(deps: EngineDeps, owner_id: UUID, branch_id: UUID, text: str) -> None:
+    """Reopen a branch that reached its turn limit, with another message and more turns.
+
+    This only ever adds to the path, so everything that already ran stays as it was.
+    """
+    message = text.strip()
+    if not message:
+        raise ContinueRefusedError("the message can't be blank")
+    problem = task_problem(message)
+    if problem:
+        raise ContinueRefusedError(problem)
+    with deps.session_factory() as session:
+        admit_fork(session, deps.limits, deps.rate_limiter, owner_id, will_run=True)
+        branch = session.get(Branch, branch_id, with_for_update=LOCK_BRANCH)
+        if branch is None:
+            raise ContinueRefusedError("only a branch that reached its turn limit can continue")
+        config = load_config(session, branch.tree_id)
+        # On its last turn the model is told to answer, so most such branches end as completed.
+        if (
+            branch.status not in (BranchStatus.COMPLETED.value, BranchStatus.CAPPED.value)
+            or branch.turns_used < config.turn_cap + branch.extra_turns
+        ):
+            raise ContinueRefusedError("only a branch that reached its turn limit can continue")
+        if len(message) > config.max_edit_chars:
+            raise ContinueRefusedError(
+                f"messages are limited to {config.max_edit_chars} characters"
+            )
+        if branch.input_tokens + branch.output_tokens >= config.branch_token_budget:
+            raise ContinueRefusedError("this branch has used all of its tokens")
+        state = session.get_one(BranchState, branch.id)
+        node = _add_node(
+            session,
+            branch,
+            state.head_node_id,
+            NodeType.USER_MSG,
+            {"text": message},
+            branch.turns_used,
+        )
+        state.messages = [*state.messages, required_message(node)]
+        state.head_node_id = node.id
+        state.next_action = NextAction.LLM.value
+        state.bypass_cache = False
+        branch.extra_turns += EXTRA_TURNS_PER_MESSAGE
+        branch.status_reason = None
+        branch.finished_at = None
+        events = _node_events(session, branch.tree_id, [node])
+        events.extend(_advance(session, branch))
+        outbox_id = add_step(
+            session, branch.id, branch.step_seq, deps.now(), deps.telemetry.trace_context()
+        )
+        session.commit()
+    publish_all(deps.live_events, events, deps.telemetry)
+    dispatch_soon(deps, outbox_id)
+
+
 def cancel_branch(deps: EngineDeps, branch_id: UUID) -> bool:
     """Cancel a non-completed branch. A step in progress has its result discarded."""
     with deps.session_factory() as session:
@@ -199,7 +261,7 @@ def _run_step(deps: EngineDeps, message: StepMessage) -> tuple[StepOutcome, Next
     provider = claim.config.provider or "unknown"
     if claim.action is NextAction.LLM:
         state["owner_id"] = claim.owner_id
-        state["force_final"] = claim.turns_used + 1 >= claim.config.turn_cap
+        state["force_final"] = claim.turns_used + 1 >= claim.turn_limit
         span_name, span_attributes = "llm.call", {"llm.provider": provider}
     else:
         state["pending_tool"] = claim.pending_tool
@@ -284,6 +346,7 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
             messages=list(state.messages),
             head_node_id=state.head_node_id,
             turns_used=branch.turns_used,
+            turn_limit=config.turn_cap + branch.extra_turns,
             pending_tool=pending_tool,
             attempt=branch.step_attempts,
         )
@@ -295,8 +358,9 @@ def _claim(deps: EngineDeps, message: StepMessage) -> _Claim | StepOutcome:
 def _budget_stop(
     deps: EngineDeps, branch: Branch, state: BranchState, config: TreeConfig, owner: User
 ) -> tuple[BranchStatus, str] | None:
-    if branch.turns_used >= config.turn_cap:
-        return BranchStatus.CAPPED, f"turn cap of {config.turn_cap} reached"
+    turn_limit = config.turn_cap + branch.extra_turns
+    if branch.turns_used >= turn_limit:
+        return BranchStatus.CAPPED, f"turn cap of {turn_limit} reached"
     spent = branch.input_tokens + branch.output_tokens
     if spent + estimate_tokens(state.messages) > config.branch_token_budget:
         return (
@@ -432,6 +496,8 @@ def _commit_tool(
 ) -> StepOutcome:
     pending = claim.pending_tool
     assert pending is not None  # noqa: S101
+    # The whole page goes in the store, even though the model only reads a truncated copy of it.
+    page = embed_page(deps.embedder, pending.name, outcome.content, outcome.is_error)
     with deps.session_factory() as session:
         branch = _locked_if_current(session, message, claim)
         if branch is None:
@@ -448,6 +514,7 @@ def _commit_tool(
             },
             claim.turns_used,
         )
+        add_page(session, branch.id, result.id, page)
         state = session.get_one(BranchState, branch.id)
         state.messages = [*state.messages, required_message(result)]
         state.head_node_id = result.id

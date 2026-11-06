@@ -1,6 +1,7 @@
 "use client";
 
-import { ACTIVE_STATUSES, type BranchInfo, STATUS_LABELS } from "@/lib/nodes";
+import { ContinueForm } from "./ContinueForm";
+import { ACTIVE_STATUSES, type BranchInfo, STATUS_LABELS, canContinue } from "@/lib/nodes";
 
 interface Props {
   open: boolean;
@@ -13,6 +14,8 @@ interface Props {
   onToggleCompare: (id: string) => void;
   onCompare: () => void;
   onCancel: (id: string) => void;
+  turnLimit: number | null;
+  onContinued: (id: string) => void;
 }
 
 export function BranchPanel({
@@ -26,6 +29,8 @@ export function BranchPanel({
   onToggleCompare,
   onCompare,
   onCancel,
+  turnLimit,
+  onContinued,
 }: Props) {
   return (
     <aside
@@ -85,6 +90,13 @@ export function BranchPanel({
                   {branch.turns_used === 1 ? "turn" : "turns"},{" "}
                   {(branch.input_tokens + branch.output_tokens).toLocaleString()} tokens.
                 </p>
+                {canContinue(branch, turnLimit) && (
+                  <ContinueForm
+                    branch={branch}
+                    turnLimit={turnLimit === null ? null : turnLimit + branch.extra_turns}
+                    onContinued={onContinued}
+                  />
+                )}
                 {ACTIVE_STATUSES.has(branch.status) && (
                   <button className="link-button small" type="button" onClick={() => onCancel(branch.id)}>
                     Cancel {name}

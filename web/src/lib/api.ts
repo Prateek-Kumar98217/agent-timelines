@@ -75,6 +75,8 @@ export const api = {
     ),
   fork: (nodeId: string, edit: Record<string, unknown>) =>
     request<Branch>(`/api/nodes/${nodeId}/fork`, post({ edit })),
+  continueBranch: (branchId: string, text: string) =>
+    request<Branch>(`/api/branches/${branchId}/continue`, post({ text })),
   cancel: (branchId: string) => request<Branch>(`/api/branches/${branchId}/cancel`, post()),
   compare: (a: string, b: string) =>
     request<Comparison>(`/api/compare?a=${a}&b=${b}`),

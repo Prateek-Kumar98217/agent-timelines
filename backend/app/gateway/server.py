@@ -41,9 +41,17 @@ def build_server(tools: GatewayTools, token_secret: str) -> MCPServer:
     def web_search(query: str, ctx: Context[Any, Any]) -> str:
         return run(ctx, "web_search", {"query": query})
 
-    @server.tool(description="Read the text of a web page by URL.")
+    @server.tool(
+        description=(
+            "Read the text of a web page by URL. The whole page stays searchable with task_search."
+        )
+    )
     def page_fetch(url: str, ctx: Context[Any, Any]) -> str:
         return run(ctx, "page_fetch", {"url": url})
+
+    @server.tool(description="Search the web pages fetched and the notes saved on this branch.")
+    def task_search(query: str, ctx: Context[Any, Any]) -> str:
+        return run(ctx, "task_search", {"query": query})
 
     @server.tool(description="Search the main knowledge base.")
     def kb_search(query: str, ctx: Context[Any, Any]) -> str:

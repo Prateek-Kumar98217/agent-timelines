@@ -50,7 +50,6 @@ HOSTED_PROVIDERS = {
         ProviderInfo(
             "gemini", "https://generativelanguage.googleapis.com/v1beta/openai/", "gemini-2.5-flash"
         ),
-        ProviderInfo("openrouter", "https://openrouter.ai/api/v1", "openrouter/free"),
     )
 }
 OLLAMA_DEFAULT_MODEL = "qwen3:4b"

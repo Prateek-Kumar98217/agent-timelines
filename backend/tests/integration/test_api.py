@@ -110,7 +110,7 @@ def test_create_run_and_read_a_tree(api: Api) -> None:
     assert tree["last_event_seq"] > 0
 
 
-def test_new_trees_offer_the_agent_tools(api: Api) -> None:
+def test_new_trees_with_the_scripted_model_offer_the_evaluation_tools(api: Api) -> None:
     tree = api.finished_tree()
     root = node_of(tree, "root")
     payload = root["payload"]
@@ -119,9 +119,10 @@ def test_new_trees_offer_the_agent_tools(api: Api) -> None:
     assert names == [
         "web_search",
         "page_fetch",
-        "kb_search",
+        "task_search",
         "calculator",
         "scratchpad_write",
+        "kb_search",
         "scratchpad_search",
     ]
 
@@ -265,6 +266,17 @@ def test_limits_count_only_unfinished_branches(api: Api) -> None:
     assert api.client.get("/api/limits").json()["active_branches"] == 0
 
 
+def test_continue_needs_a_branch_at_its_turn_limit(api: Api) -> None:
+    tree = api.finished_tree()
+    branch = tree["branches"][0]["id"]  # type: ignore[index]
+    response = api.client.post(f"/api/branches/{branch}/continue", json={"text": "More please"})
+    assert response.status_code == 409
+    assert "turn limit" in response.json()["detail"]
+    assert api.client.get("/api/trees/x").status_code == 422
+    missing = api.client.post(f"/api/branches/{uuid4()}/continue", json={"text": "More"})
+    assert missing.status_code == 404
+
+
 def test_compare_across_trees_is_refused(api: Api) -> None:
     _, one = api.start("one")
     _, two = api.start("two")
@@ -345,7 +357,7 @@ API_KEY = "gsk-very-secret-key-ABCD"
 
 def test_providers_list_what_is_usable(api: Api) -> None:
     providers = {item["name"]: item for item in api.client.get("/api/providers").json()}
-    assert set(providers) == {"groq", "gemini", "openrouter", "mock"}
+    assert set(providers) == {"groq", "gemini", "mock"}
     assert providers["groq"]["available"] is False
     assert providers["mock"]["available"] is True
 

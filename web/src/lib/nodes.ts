@@ -17,6 +17,7 @@ const TOOL_LABELS: Record<string, string> = {
   web_search: "web search",
   page_fetch: "open page",
   kb_search: "KB search",
+  task_search: "search this task",
   calculator: "calculator",
   scratchpad_write: "save note",
   scratchpad_search: "find note",
@@ -50,6 +51,13 @@ export function turnLimitOf(tree: Tree): number | null {
   const root = tree.nodes.find((node) => node.parent_id === null);
   const config = root?.payload.config as { turn_cap?: number } | undefined;
   return config?.turn_cap ?? null;
+}
+
+/** Whether a branch has finished by using every turn it had, so it can take another message. */
+export function canContinue(branch: Branch, baseTurnLimit: number | null): boolean {
+  if (baseTurnLimit === null) return false;
+  if (branch.status !== "completed" && branch.status !== "capped") return false;
+  return branch.turns_used >= baseTurnLimit + branch.extra_turns;
 }
 
 export const taskOfTree = (tree: Tree): string => {
@@ -171,9 +179,13 @@ export function describeBranches(tree: Tree): BranchInfo[] {
  * visible, because what ran is never hidden.
  */
 export function withoutTaskCopy(tree: Tree): Tree {
+  const rootId = tree.nodes.find((node) => node.parent_id === null)?.id;
   const copies = new Map(
     tree.nodes
-      .filter((node) => node.type === "user_msg" && node.edited_from_id === null)
+      .filter(
+        (node) =>
+          node.type === "user_msg" && node.edited_from_id === null && node.parent_id === rootId,
+      )
       .map((node) => [node.id, node.parent_id]),
   );
   return {
@@ -186,6 +198,12 @@ export function withoutTaskCopy(tree: Tree): Tree {
           : node,
       ),
   };
+}
+
+/** Only an older branch can show this: a message at the top of the tree, which changed the task. */
+export function changedTheTask(tree: Tree, node: TimelineNode): boolean {
+  if (node.type !== "user_msg") return false;
+  return tree.nodes.find((entry) => entry.id === node.parent_id)?.parent_id === null;
 }
 
 /** The nodes from the root to `nodeId`, inclusive. */

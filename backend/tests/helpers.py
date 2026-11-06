@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app.adapters.memory import (
     FixtureTools,
+    HashEmbedder,
     InlineQueue,
     MemoryLiveEvents,
     MemoryRateLimiter,
@@ -84,6 +85,7 @@ class Harness:
             tools=self.tools,
             live_events=self.events,
             rate_limiter=self.rate_limiter,
+            embedder=HashEmbedder(),
             limits=limits or GENEROUS_LIMITS,
             now=self.clock,
         )

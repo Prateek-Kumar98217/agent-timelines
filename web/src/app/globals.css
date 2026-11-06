@@ -218,6 +218,11 @@ textarea.field {
   padding: 1rem 0;
 }
 
+.home-links {
+  display: flex;
+  gap: 1.25rem;
+}
+
 .wordmark {
   flex: none;
   color: var(--orange);
@@ -858,6 +863,19 @@ textarea.field {
 
 .branch-name:hover {
   text-decoration: underline;
+}
+
+.continue-form {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+  padding: 0.6rem 0.65rem;
+  border-left: 4px solid var(--orange);
+  background: var(--orange-wash);
+}
+
+.continue-form textarea.field {
+  min-height: 4rem;
 }
 
 /* Compare */
