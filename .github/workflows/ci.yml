@@ -56,6 +56,21 @@ jobs:
 
   runtime-check:
     runs-on: ubuntu-latest
+    services:
+      # The evaluation tests store scores in a throwaway database.
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: timelines
+          POSTGRES_PASSWORD: timelines-local
+          POSTGRES_DB: timelines
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U timelines"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
