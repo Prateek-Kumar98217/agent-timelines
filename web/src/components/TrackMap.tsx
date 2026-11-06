@@ -3,12 +3,14 @@
 import {
   Background,
   BackgroundVariant,
+  ControlButton,
   Controls,
   type Edge,
   type EdgeProps,
   Handle,
   MiniMap,
   type Node,
+  type NodeHandle,
   type NodeProps,
   Position,
   ReactFlow,
@@ -33,8 +35,19 @@ import type { Arrivals } from "@/lib/useTree";
 const TERMINUS_HEIGHT = 44;
 const TERMINUS_GAP = 10;
 const MIN_READABLE_ZOOM = 0.7;
+const MIN_ZOOM = 0.15;
 const VIEW_MARGIN = 28;
 const PANEL_WIDTH = 432;
+
+/**
+ * Fixed handle positions, so React Flow never needs to measure them. Nodes are rebuilt on every
+ * update, which discards anything it measured, and an arrow can't be drawn until its handles are
+ * known. Without these, arrows were rebuilt on every click and could go missing altogether.
+ */
+const BLOCK_HANDLES: NodeHandle[] = [
+  { type: "target", position: Position.Top, x: BLOCK_WIDTH / 2, y: 0, width: 1, height: 1 },
+  { type: "source", position: Position.Bottom, x: BLOCK_WIDTH / 2, y: BLOCK_HEIGHT, width: 1, height: 1 },
+];
 
 type BlockData = {
   node: TimelineNode;
@@ -214,6 +227,51 @@ function ViewControl({
   return null;
 }
 
+/** Shows the whole tree. The tree's size is already known, so nothing needs measuring. */
+function FitButton({
+  width,
+  height,
+  frame,
+}: {
+  width: number;
+  height: number;
+  frame: React.RefObject<HTMLDivElement | null>;
+}) {
+  const { setViewport } = useReactFlow();
+  const fit = () => {
+    const box = frame.current;
+    if (!box || width === 0) return;
+    const zoom = Math.max(
+      MIN_ZOOM,
+      Math.min(
+        (box.clientWidth - VIEW_MARGIN * 2) / width,
+        (box.clientHeight - VIEW_MARGIN * 2) / height,
+        1,
+      ),
+    );
+    void setViewport(
+      {
+        x: (box.clientWidth - width * zoom) / 2,
+        y: (box.clientHeight - height * zoom) / 2,
+        zoom,
+      },
+      { duration: 300 },
+    );
+  };
+  return (
+    <ControlButton
+      className="react-flow__controls-fitview"
+      onClick={fit}
+      title="Show the whole tree"
+      aria-label="Show the whole tree"
+    >
+      <svg viewBox="0 0 32 30" aria-hidden="true">
+        <path d="M3.7 11.2c.8 0 1.5-.7 1.5-1.5V5.2h4.4c.8 0 1.5-.7 1.5-1.5s-.7-1.5-1.5-1.5H3.7c-.8 0-1.5.7-1.5 1.5v6c0 .8.7 1.5 1.5 1.5zm24.6 0c.8 0 1.5-.7 1.5-1.5v-6c0-.8-.7-1.5-1.5-1.5h-5.9c-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5h4.4v4.5c0 .8.7 1.5 1.5 1.5zM9.6 24.8H5.2v-4.5c0-.8-.7-1.5-1.5-1.5s-1.5.7-1.5 1.5v6c0 .8.7 1.5 1.5 1.5h5.9c.8 0 1.5-.7 1.5-1.5s-.7-1.5-1.5-1.5zm18.7-6c-.8 0-1.5.7-1.5 1.5v4.5h-4.4c-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5h5.9c.8 0 1.5-.7 1.5-1.5v-6c0-.8-.7-1.5-1.5-1.5z" />
+      </svg>
+    </ControlButton>
+  );
+}
+
 const MINIMAP_COLORS: Record<BlockInfo["kind"], string> = {
   task: "#f2efea",
   you: "#c4a7ff",
@@ -278,6 +336,7 @@ export function TrackMap({
         position: place,
         width: BLOCK_WIDTH,
         height: BLOCK_HEIGHT,
+        handles: BLOCK_HANDLES,
         draggable: false,
         selectable: false,
         data: {
@@ -339,13 +398,15 @@ export function TrackMap({
         nodesFocusable={false}
         edgesFocusable={false}
         elementsSelectable={false}
-        minZoom={0.15}
+        minZoom={MIN_ZOOM}
         maxZoom={1.5}
         onPaneClick={onClearSelection}
       >
         <ViewControl width={width} height={height} frame={frame} follow={follow} panelOpen={panelOpen} />
         <Background variant={BackgroundVariant.Dots} gap={LANE_X / 4} size={1} color="#262626" />
-        <Controls showInteractive={false} />
+        <Controls showInteractive={false} showFitView={false}>
+          <FitButton width={width} height={height} frame={frame} />
+        </Controls>
         <MiniMap
           pannable
           zoomable
