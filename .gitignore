@@ -35,3 +35,7 @@ loadtest/results/
 .DS_Store
 .idea/
 .vscode/
+next-env.d.ts
+*.tsbuildinfo
+test-results/
+playwright-report/
