@@ -239,6 +239,30 @@ def agreement(session_factory: SessionFactory, runs: list[dict[str, Any]]) -> di
     }
 
 
+def answer_scores(
+    session_factory: SessionFactory, runs: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Each judged answer's score beside its fact check, for the published report."""
+    with session_factory() as session:
+        rows = session.execute(
+            select(BranchScore.branch_id, BranchScore.score, BranchScore.reason).where(
+                BranchScore.metric == METRIC
+            )
+        ).all()
+    scored = {str(row.branch_id): row for row in rows}
+    return [
+        {
+            "task": run["task_id"],
+            "edit": run["edit_class"],
+            "judge": scored[run["branch_id"]].score,
+            "facts": run["fact_score"],
+            "reason": scored[run["branch_id"]].reason,
+        }
+        for run in runs
+        if run["branch_id"] in scored
+    ]
+
+
 def read_api_key(env_file: Path = ROOT / ".env") -> str | None:
     if key := os.environ.get("GEMINI_API_KEY"):
         return key
@@ -274,7 +298,12 @@ def main() -> None:
         counts = run_judging(session_factory, judge, runs)
     except JudgeAuthError as error:
         raise SystemExit(f"the judge isn't working: {error}") from None
-    summary = {**counts, "model": args.model, **agreement(session_factory, runs)}
+    summary = {
+        **counts,
+        "model": args.model,
+        **agreement(session_factory, runs),
+        "answers": answer_scores(session_factory, runs),
+    }
     (ROOT / "docs" / "eval" / "judge.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
 

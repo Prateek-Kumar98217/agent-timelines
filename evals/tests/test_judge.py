@@ -18,6 +18,7 @@ from judge import (
     JudgeAuthError,
     JudgeQuotaError,
     agreement,
+    answer_scores,
     judge_answer,
     judged_set,
     read_api_key,
@@ -246,6 +247,14 @@ def test_the_judged_set_is_small_and_mixes_right_and_wrong_answers() -> None:
         chosen = judged_set([json.loads(line) for line in file])
     assert len(chosen) == 6
     assert sum(1 for run in chosen if run["fact_score"] == 1.0) == 3
+
+
+def test_each_score_is_kept_beside_its_fact_check(stub: Stub, clean_db: SessionFactory) -> None:
+    runs = make_runs(clean_db, 2)
+    run_judging(clean_db, make_judge(stub), runs)
+    answers = answer_scores(clean_db, runs)
+    assert len(answers) == 2
+    assert {"task", "edit", "judge", "facts", "reason"} <= set(answers[0])
 
 
 def test_agreement_with_the_fact_check(stub: Stub, clean_db: SessionFactory) -> None:
