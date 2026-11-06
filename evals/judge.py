@@ -1,8 +1,10 @@
 """Scores branch answers with DeepEval, using free-tier Gemini as the judge.
 
+This runs by hand only, never in CI or on a schedule, and scores a small fixed set of answers.
+
 Put GEMINI_API_KEY in a git-ignored .env file, then:
     uv run --all-groups python evals/judge.py --check     # one call, to confirm the key works
-    uv run --all-groups python evals/judge.py             # score everything not yet scored
+    uv run --all-groups python evals/judge.py             # score the set
 
 Scores are saved one at a time, so a run stopped by the daily quota resumes where it left off.
 """
@@ -113,6 +115,11 @@ class GeminiJudge(DeepEvalBaseLLM):
         return await asyncio.to_thread(self.generate, prompt)
 
 
+# Three tasks, each with its original run and the fork given a contradicting source: 6 answers.
+JUDGED_TASKS = ("apollo_gap", "peak_gap", "nobel_gap")
+JUDGED_EDITS = ("main", "result_contradiction")
+
+
 def _retry_after(error: openai.RateLimitError, attempt: int) -> float:
     try:
         return max(1.0, float(error.response.headers.get("retry-after", "")))
@@ -163,11 +170,18 @@ def save_score(
         session.commit()
 
 
+def judged_set(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The only answers the judge ever sees: right and wrong ones, so agreement means something."""
+    wanted = {(task, edit) for task in JUDGED_TASKS for edit in JUDGED_EDITS}
+    return [
+        run for run in runs if (run["task_id"], run["edit_class"]) in wanted and run["repeat"] == 0
+    ]
+
+
 def run_judging(
     session_factory: SessionFactory,
     judge: DeepEvalBaseLLM,
     runs: list[dict[str, Any]],
-    limit: int | None = None,
 ) -> dict[str, int]:
     """Score runs that have an answer and no score yet. Stops cleanly when the quota runs out."""
     done = already_scored(session_factory)
@@ -178,9 +192,6 @@ def run_judging(
             continue
         if not run.get("final_text"):
             counts["no_answer"] += 1
-            continue
-        if limit is not None and counts["scored"] >= limit:
-            counts["remaining"] += 1
             continue
         task = TASKS_BY_ID[run["task_id"]]
         try:
@@ -241,7 +252,6 @@ def read_api_key(env_file: Path = ROOT / ".env") -> str | None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true", help="make one call and stop")
-    parser.add_argument("--limit", type=int, help="score at most this many branches")
     parser.add_argument("--model", default=os.environ.get("JUDGE_MODEL", DEFAULT_MODEL))
     args = parser.parse_args()
 
@@ -259,9 +269,9 @@ def main() -> None:
 
     session_factory = make_session_factory(get_settings().database_url)
     with (ROOT / "docs" / "eval" / "runs.jsonl").open() as file:
-        runs = [json.loads(line) for line in file]
+        runs = judged_set([json.loads(line) for line in file])
     try:
-        counts = run_judging(session_factory, judge, runs, args.limit)
+        counts = run_judging(session_factory, judge, runs)
     except JudgeAuthError as error:
         raise SystemExit(f"the judge isn't working: {error}") from None
     summary = {**counts, "model": args.model, **agreement(session_factory, runs)}

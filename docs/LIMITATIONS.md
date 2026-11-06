@@ -25,7 +25,7 @@ tested, along with what closed it.
 | Pages fetched before this change have no entries in the store | Older branches can't search their pages, because history isn't rewritten | Accepted |
 | Similarity can't tell a changed fact from the same fact | Edits that contradict a source changed the facts in 62% of runs and were flagged as diverged in 7%, so compare marks the changed words too | Accepted |
 | The convergence threshold comes from one model on 8 tasks | It may not suit other models, so it's a setting | Accepted |
-| The judge hasn't scored the experiment yet | Task success so far comes from deterministic fact checks only | 8 |
+| The judge scores only 6 fixed answers, by hand, never in CI or on a schedule | It checks the fact checks on a small sample, and the rest of task success is deterministic | Accepted |
 | External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
 | The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
 
