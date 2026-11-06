@@ -133,8 +133,8 @@ Nothing has been measured on a deployed build.</strong></p>
 
 <section id="tests">
   <h2>Automated and live checks</h2>
-  <p>530 automated tests. None of them call a real model.</p>
-  <div class="scroll"><table><thead><tr><th scope="col">Suite</th><th scope="col" class=num>Tests</th></tr></thead><tbody><tr><th scope="row">Backend</th><td class=num>386</td></tr><tr><th scope="row">Browser service</th><td class=num>35</td></tr><tr><th scope="row">Evaluation code</th><td class=num>58</td></tr><tr><th scope="row">Web unit tests</th><td class=num>21</td></tr><tr><th scope="row">Browser tests of the app</th><td class=num>30</td></tr></tbody></table></div>
+  <p>534 automated tests. None of them call a real model.</p>
+  <div class="scroll"><table><thead><tr><th scope="col">Suite</th><th scope="col" class=num>Tests</th></tr></thead><tbody><tr><th scope="row">Backend</th><td class=num>389</td></tr><tr><th scope="row">Browser service</th><td class=num>35</td></tr><tr><th scope="row">Evaluation code</th><td class=num>58</td></tr><tr><th scope="row">Web unit tests</th><td class=num>21</td></tr><tr><th scope="row">Browser tests of the app</th><td class=num>31</td></tr></tbody></table></div>
   <h3>Failure checks on the running stack</h3>
   <p>Run from <code>scripts/smoke_local.py</code> and <code>scripts/smoke_observability.py</code>,
   in containers, with a scripted model.</p>
@@ -148,7 +148,7 @@ Nothing has been measured on a deployed build.</strong></p>
   slower under heavy load. A request can now wait about 6 seconds if the broker stops answering.</p>
   <h3>Live checks with the real model</h3>
   <p>Run once by hand on the full stack, with <code>qwen3:4b</code>.</p>
-  <div class="scroll"><table><tbody><tr><th scope=row>Web fetch into the task's RAG</th><td>A real page from example.com was stored with its source, split into 2 chunks.</td></tr><tr><th scope=row>Search after the fetch</th><td>A real <code>task_search</code> through the MCP gateway returned that page.</td></tr><tr><th scope=row>Search from before the fetch</th><td>The same search on a fork from before the fetch found nothing, so the path rule holds.</td></tr><tr><th scope=row>Editing a fetched page</th><td>The fork saw only the edited page, the model answered from it, and the original branch's store was unchanged.</td></tr><tr><th scope=row>Continuing a branch</th><td>A branch at its turn limit took another message, gained 4 turns and answered, using a tree with a low limit so that it was quick.</td></tr><tr><th scope=row>Editing the task</th><td>The API refused it with a 409.</td></tr></tbody></table></div>
+  <div class="scroll"><table><tbody><tr><th scope=row>Web fetch into the task's RAG</th><td>A real page from example.com was stored with its source, split into 2 chunks.</td></tr><tr><th scope=row>Search after the fetch</th><td>A real <code>task_search</code> through the MCP gateway returned that page.</td></tr><tr><th scope=row>Search from before the fetch</th><td>The same search on a fork from before the fetch found nothing, so the path rule holds.</td></tr><tr><th scope=row>Editing a fetched page</th><td>The fork saw only the edited page, the model answered from it, and the original branch's store was unchanged.</td></tr><tr><th scope=row>Continuing a branch</th><td>A finished branch took another message and answered, using the page it had already fetched. One with no turns left gained 4, and one with turns left gained none.</td></tr><tr><th scope=row>Editing the task</th><td>The API refused it with a 409.</td></tr></tbody></table></div>
   <p class="finding"><strong>The model rarely searches.</strong> It answered from the fetched page
   without calling <code>task_search</code>, even when the task asked for it, so the search above was
   triggered with an edit. On short tasks with this model, the task's RAG often goes unused.</p>

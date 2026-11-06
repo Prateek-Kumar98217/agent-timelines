@@ -1,7 +1,7 @@
 {
-  "Backend": 386,
+  "Backend": 389,
   "Browser service": 35,
   "Evaluation code": 58,
   "Web unit tests": 21,
-  "Browser tests of the app": 30
+  "Browser tests of the app": 31
 }

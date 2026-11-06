@@ -266,15 +266,18 @@ def test_limits_count_only_unfinished_branches(api: Api) -> None:
     assert api.client.get("/api/limits").json()["active_branches"] == 0
 
 
-def test_continue_needs_a_branch_at_its_turn_limit(api: Api) -> None:
-    tree = api.finished_tree()
-    branch = tree["branches"][0]["id"]  # type: ignore[index]
-    response = api.client.post(f"/api/branches/{branch}/continue", json={"text": "More please"})
-    assert response.status_code == 409
-    assert "turn limit" in response.json()["detail"]
-    assert api.client.get("/api/trees/x").status_code == 422
+def test_continue_takes_a_finished_branch_and_refuses_others(api: Api) -> None:
+    tree_id, branch = api.start()
+    early = api.client.post(f"/api/branches/{branch}/continue", json={"text": "More please"})
+    assert early.status_code == 409
+    assert "finished" in early.json()["detail"]
+    api.harness.drain()
+    done = api.client.post(f"/api/branches/{branch}/continue", json={"text": "More please"})
+    assert done.status_code == 200
+    assert done.json()["status"] == "queued"
     missing = api.client.post(f"/api/branches/{uuid4()}/continue", json={"text": "More"})
     assert missing.status_code == 404
+    assert tree_id
 
 
 def test_compare_across_trees_is_refused(api: Api) -> None:

@@ -43,13 +43,14 @@ export function Workspace({ id }: { id: string }) {
     [tree, info],
   );
   const highlighted = useMemo(() => new Set(path.map((node) => node.id)), [path]);
-  // A branch opens on the step that was edited to create it. One that hit its turn limit opens on
-  // its last step, which is where it can continue.
+  // A branch opens on the step that was edited to create it. The original run has none, so when
+  // it's finished it opens on its last step, which is where it can continue.
   const node =
     tree?.nodes.find((entry) => entry.id === selectedNodeId) ??
     (selectedNodeId === null && selectedBranchId
-      ? ((info && canContinue(info.branch, tree ? turnLimitOf(tree) : null) ? info.lastNode : undefined) ??
-        tree?.nodes.find((entry) => entry.branch_id === selectedBranchId && entry.edited_from_id))
+      ? (tree?.nodes.find(
+          (entry) => entry.branch_id === selectedBranchId && entry.edited_from_id,
+        ) ?? (info && canContinue(info.branch) ? info.lastNode : undefined))
       : undefined) ??
     null;
 
@@ -198,7 +199,7 @@ export function Workspace({ id }: { id: string }) {
         turnLimit={selectedTurnLimit}
         taskChanged={node !== null && changedTheTask(tree, node)}
         canContinue={
-          info !== null && canContinue(info.branch, baseTurnLimit) && node?.id === info.lastNode?.id
+          info !== null && canContinue(info.branch) && node?.id === info.lastNode?.id
         }
         onContinued={forked}
         open={showStep}

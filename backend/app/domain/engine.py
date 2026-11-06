@@ -164,7 +164,7 @@ class ContinueRefusedError(Exception):
 
 
 def continue_branch(deps: EngineDeps, owner_id: UUID, branch_id: UUID, text: str) -> None:
-    """Reopen a branch that reached its turn limit, with another message and more turns.
+    """Reopen a finished branch with another message. It gains turns only if it has none left.
 
     This only ever adds to the path, so everything that already ran stays as it was.
     """
@@ -177,15 +177,12 @@ def continue_branch(deps: EngineDeps, owner_id: UUID, branch_id: UUID, text: str
     with deps.session_factory() as session:
         admit_fork(session, deps.limits, deps.rate_limiter, owner_id, will_run=True)
         branch = session.get(Branch, branch_id, with_for_update=LOCK_BRANCH)
-        if branch is None:
-            raise ContinueRefusedError("only a branch that reached its turn limit can continue")
-        config = load_config(session, branch.tree_id)
-        # On its last turn the model is told to answer, so most such branches end as completed.
-        if (
-            branch.status not in (BranchStatus.COMPLETED.value, BranchStatus.CAPPED.value)
-            or branch.turns_used < config.turn_cap + branch.extra_turns
+        if branch is None or branch.status not in (
+            BranchStatus.COMPLETED.value,
+            BranchStatus.CAPPED.value,
         ):
-            raise ContinueRefusedError("only a branch that reached its turn limit can continue")
+            raise ContinueRefusedError("only a finished branch can continue")
+        config = load_config(session, branch.tree_id)
         if len(message) > config.max_edit_chars:
             raise ContinueRefusedError(
                 f"messages are limited to {config.max_edit_chars} characters"
@@ -205,7 +202,8 @@ def continue_branch(deps: EngineDeps, owner_id: UUID, branch_id: UUID, text: str
         state.head_node_id = node.id
         state.next_action = NextAction.LLM.value
         state.bypass_cache = False
-        branch.extra_turns += EXTRA_TURNS_PER_MESSAGE
+        if branch.turns_used >= config.turn_cap + branch.extra_turns:
+            branch.extra_turns += EXTRA_TURNS_PER_MESSAGE
         branch.status_reason = None
         branch.finished_at = None
         events = _node_events(session, branch.tree_id, [node])

@@ -121,7 +121,7 @@ def _fork(
         if source.parent_id is None:
             raise NotEditableError("the root node can't be edited")
         config = load_config(session, source.tree_id)
-        extra_turns = extra_turns_on(path_to(session, source.id))
+        extra_turns = extra_turns_on(path_to(session, source.id), config.turn_cap)
         plan = _plan_edit(source, edit, config, config.turn_cap + extra_turns)
         if not allow_noop and _same_content(source, plan.node_payload):
             raise NoOpEditError("the edit doesn't change the node")

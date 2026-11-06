@@ -74,8 +74,8 @@ LIVE_CHECKS = [
     ),
     (
         "Continuing a branch",
-        "A branch at its turn limit took another message, gained 4 turns and answered, "
-        "using a tree with a low limit so that it was quick.",
+        "A finished branch took another message and answered, using the page it had already "
+        "fetched. One with no turns left gained 4, and one with turns left gained none.",
     ),
     ("Editing the task", "The API refused it with a 409."),
 ]

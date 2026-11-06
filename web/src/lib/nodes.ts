@@ -53,12 +53,9 @@ export function turnLimitOf(tree: Tree): number | null {
   return config?.turn_cap ?? null;
 }
 
-/** Whether a branch has finished by using every turn it had, so it can take another message. */
-export function canContinue(branch: Branch, baseTurnLimit: number | null): boolean {
-  if (baseTurnLimit === null) return false;
-  if (branch.status !== "completed" && branch.status !== "capped") return false;
-  return branch.turns_used >= baseTurnLimit + branch.extra_turns;
-}
+/** Any finished branch can take another message. Failed and cancelled ones can't. */
+export const canContinue = (branch: Branch): boolean =>
+  branch.status === "completed" || branch.status === "capped";
 
 export const taskOfTree = (tree: Tree): string => {
   const root = tree.nodes.find((node) => node.parent_id === null);

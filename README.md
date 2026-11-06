@@ -16,7 +16,8 @@ comes from local tests. The deployed build isn't built.
   turns and tools.
 - **A RAG for each task:** pages the agent fetches go into the task's store, and a branch can only
   search what's on its own path.
-- **Continuing:** a branch that used all its turns can take another message, which adds 4 more.
+- **Continuing:** any finished branch can take another message. It uses the turns it has left, and
+  gains 4 more if it has none.
 - **Limits:** turn, token, branch and queue limits for each kind of user, shown in the app. Waiting
   branches use no compute.
 

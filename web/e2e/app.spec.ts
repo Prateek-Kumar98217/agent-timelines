@@ -120,12 +120,13 @@ test("compare counts the tokens of the whole path", async ({ page }) => {
   await expect(row.getByRole("cell").nth(1)).toHaveText(total.toLocaleString());
 });
 
-test("a branch at its turn limit continues with a message and 4 more turns", async ({ page }) => {
+test("a branch with no turns left gains 4 when it continues", async ({ page }) => {
   await startTask(page, "[run long]");
   const bar = page.locator(".limits");
   await expect(bar).toContainText("12 of 12 turns");
   await openBranches(page);
   const row = branchRow(page, "Original run");
+  await row.getByRole("button", { name: "Continue this branch" }).click();
   await row.getByRole("textbox", { name: "Your next message" }).fill("Check one more source");
   await row.getByRole("button", { name: "Continue branch" }).click();
 
@@ -134,7 +135,7 @@ test("a branch at its turn limit continues with a message and 4 more turns", asy
   await expect(page.locator(".block-you")).toContainText("Check one more source");
   // It reaches the new limit, and the same choice is there again.
   await expect(bar).toContainText("16 of 16 turns", { timeout: LIVE_TIMEOUT });
-  await expect(row.getByRole("button", { name: "Continue branch" })).toBeVisible({
+  await expect(row.getByRole("button", { name: "Continue this branch" })).toBeVisible({
     timeout: LIVE_TIMEOUT,
   });
 });
@@ -143,6 +144,7 @@ test("a follow-up message can be edited into a new branch", async ({ page }) => 
   await startTask(page, "[run long]");
   await openBranches(page);
   const row = branchRow(page, "Original run");
+  await row.getByRole("button", { name: "Continue this branch" }).click();
   await row.getByRole("textbox", { name: "Your next message" }).fill("Check one more source");
   await row.getByRole("button", { name: "Continue branch" }).click();
   await expect(page.locator(".block-you")).toHaveCount(1, { timeout: LIVE_TIMEOUT });
@@ -154,11 +156,30 @@ test("a follow-up message can be edited into a new branch", async ({ page }) => 
   await expect(page.locator(".block-you")).toHaveCount(2, { timeout: LIVE_TIMEOUT });
 });
 
-test("a branch that finished normally can't be continued", async ({ page }) => {
+test("a finished branch with turns left continues without gaining more", async ({ page }) => {
   await startTask(page);
+  const bar = page.locator(".limits");
+  await expect(bar).toContainText("of 12 turns");
   await openBranches(page);
-  await expect(branchRow(page, "Original run")).toContainText("Finished");
-  await expect(page.getByRole("button", { name: "Continue branch" })).toHaveCount(0);
+  const row = branchRow(page, "Original run");
+  await row.getByRole("button", { name: "Continue this branch" }).click();
+  await expect(row.locator(".continue-form")).toContainText("turns left");
+  await row.getByRole("textbox", { name: "Your next message" }).fill("Tell me more");
+  await row.getByRole("button", { name: "Continue branch" }).click();
+  await expect(page.locator(".block-you")).toContainText("Tell me more", { timeout: LIVE_TIMEOUT });
+  await expect(page.getByRole("status")).toHaveText("All branches finished", {
+    timeout: LIVE_TIMEOUT,
+  });
+  await expect(bar).toContainText("of 12 turns");
+});
+
+test("the original run opens on its last step, ready to continue", async ({ page }) => {
+  await startTask(page);
+  await page.locator(".terminus").first().click();
+  const steps = page.locator(".sidebar-right");
+  await expect(steps).toHaveClass(/sidebar-open/);
+  await expect(steps.getByRole("heading", { name: "Final answer" })).toBeVisible();
+  await expect(steps.getByRole("textbox", { name: "Your next message" })).toBeVisible();
 });
 
 test("the test report is on the site, and links back to the app", async ({ page }) => {

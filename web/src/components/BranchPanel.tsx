@@ -90,8 +90,9 @@ export function BranchPanel({
                   {branch.turns_used === 1 ? "turn" : "turns"},{" "}
                   {(branch.input_tokens + branch.output_tokens).toLocaleString()} tokens.
                 </p>
-                {canContinue(branch, turnLimit) && (
+                {canContinue(branch) && (
                   <ContinueForm
+                    collapsed
                     branch={branch}
                     turnLimit={turnLimit === null ? null : turnLimit + branch.extra_turns}
                     onContinued={onContinued}

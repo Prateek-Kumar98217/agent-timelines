@@ -38,7 +38,13 @@ def path_to(session: Session, node_id: UUID) -> list[Node]:
     )
 
 
-def extra_turns_on(path: list[Node]) -> int:
-    """Turns earned by follow-up messages. The first message after the root is the task itself."""
-    follow_ups = sum(1 for node in path[2:] if node.type == NodeType.USER_MSG)
-    return follow_ups * EXTRA_TURNS_PER_MESSAGE
+def extra_turns_on(path: list[Node], turn_cap: int) -> int:
+    """Turns earned on a path: a follow-up message earns them only if it arrived with none left.
+
+    The first message after the root is the task itself, so it's never a follow-up.
+    """
+    extra = 0
+    for node in path[2:]:
+        if node.type == NodeType.USER_MSG and node.turn_index >= turn_cap + extra:
+            extra += EXTRA_TURNS_PER_MESSAGE
+    return extra

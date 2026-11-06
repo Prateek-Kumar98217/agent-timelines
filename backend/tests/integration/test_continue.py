@@ -1,4 +1,4 @@
-"""A branch that reached its turn limit can continue with another message."""
+"""A finished branch can continue with another message, gaining turns only if it has none left."""
 
 from uuid import UUID
 
@@ -7,7 +7,7 @@ import pytest
 from app.db.models import BranchStatus, NodeType
 from app.db.session import SessionFactory
 from app.domain.config import EXTRA_TURNS_PER_MESSAGE, TreeConfig
-from app.domain.engine import ContinueRefusedError, continue_branch, start_task
+from app.domain.engine import ContinueRefusedError, cancel_branch, continue_branch, start_task
 from app.domain.forking import fork_from_edit
 from app.domain.limits import AdmissionRejectedError, Limits, UserLimits
 from tests.helpers import CONFIG, Harness, text_reply, tool_reply
@@ -84,15 +84,35 @@ def test_a_branch_that_answered_on_its_last_turn_can_continue(clean_db: SessionF
     assert harness.nodes(branch)[-1].payload["text"] == "more"
 
 
-def test_only_a_branch_at_its_limit_can_continue(clean_db: SessionFactory) -> None:
-    harness = Harness(clean_db, [text_reply()])
-    _, branch = start_task(harness.deps, harness.user.id, "the task", SHORT)
-    with pytest.raises(ContinueRefusedError, match="turn limit"):
-        continue_branch(harness.deps, harness.user.id, branch, "Too early")
+def test_a_branch_with_turns_left_continues_without_gaining_more(clean_db: SessionFactory) -> None:
+    harness = Harness(clean_db, [text_reply("first"), text_reply("second")])
+    _, branch = start_task(harness.deps, harness.user.id, "the task", CONFIG)
     harness.drain()
-    assert harness.branch(branch).status == BranchStatus.COMPLETED
-    with pytest.raises(ContinueRefusedError, match="turn limit"):
-        continue_branch(harness.deps, harness.user.id, branch, "Finished normally")
+    assert harness.branch(branch).turns_used == 1
+
+    continue_branch(harness.deps, harness.user.id, branch, "Tell me more")
+    harness.drain()
+
+    row = harness.branch(branch)
+    assert row.status == BranchStatus.COMPLETED
+    assert row.turns_used == 2
+    assert row.extra_turns == 0
+    assert harness.nodes(branch)[-1].payload["text"] == "second"
+
+
+def test_a_branch_still_running_cant_continue(clean_db: SessionFactory) -> None:
+    harness = Harness(clean_db, [text_reply()])
+    _, branch = start_task(harness.deps, harness.user.id, "the task", CONFIG)
+    with pytest.raises(ContinueRefusedError, match="finished"):
+        continue_branch(harness.deps, harness.user.id, branch, "Too early")
+
+
+def test_a_cancelled_branch_cant_continue(clean_db: SessionFactory) -> None:
+    harness = Harness(clean_db, [text_reply()])
+    _, branch = start_task(harness.deps, harness.user.id, "the task", CONFIG)
+    cancel_branch(harness.deps, branch)
+    with pytest.raises(ContinueRefusedError, match="finished"):
+        continue_branch(harness.deps, harness.user.id, branch, "Come back")
 
 
 @pytest.mark.parametrize(
@@ -140,6 +160,19 @@ def test_a_fork_after_the_message_inherits_the_extra_turns(clean_db: SessionFact
         {"text": None, "tool_call": {"name": "search", "arguments": {"query": "q"}}},
     )
     assert harness.branch(after).extra_turns == EXTRA_TURNS_PER_MESSAGE
+
+
+def test_a_fork_after_a_message_that_earned_nothing_gains_nothing(clean_db: SessionFactory) -> None:
+    harness = Harness(clean_db, [text_reply("first"), text_reply("second")])
+    _, branch = start_task(harness.deps, harness.user.id, "the task", CONFIG)
+    harness.drain()
+    continue_branch(harness.deps, harness.user.id, branch, "Tell me more")
+    harness.drain()
+
+    fork = fork_from_edit(
+        harness.deps, harness.user.id, harness.nodes(branch)[-1].id, {"text": "x"}
+    )
+    assert harness.branch(fork).extra_turns == 0
 
 
 def test_a_fork_before_the_message_doesnt(clean_db: SessionFactory) -> None:
