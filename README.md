@@ -29,7 +29,7 @@ tokens and branch outcomes. Its source is `infra/grafana/build_dashboard.py`. On
 follows a branch across the API, worker and gateway. `scripts/smoke_observability.py` checks all of
 this on a running stack.
 
-Hosted providers (Groq, Gemini, OpenRouter) use a key you save with `PUT /api/keys/{provider}`.
+Hosted providers (Groq, Gemini) use a key you save with `PUT /api/keys/{provider}`.
 
 To test failure recovery (killing a worker mid-step and stopping the broker), start the stack with
 short leases and slow steps, then run the smoke test:

@@ -8,7 +8,6 @@ import type { Provider } from "@/lib/types";
 const NAMES: Record<string, string> = {
   groq: "Groq",
   gemini: "Google Gemini",
-  openrouter: "OpenRouter",
   ollama: "Ollama, on this machine",
   mock: "Scripted test model",
 };

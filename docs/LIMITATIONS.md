@@ -10,7 +10,7 @@ tested, along with what closed it.
 
 | Limitation | Risk until closed | Closes in |
 |---|---|---|
-| Groq, Gemini and OpenRouter are tested against a local stub, never a live key | A provider quirk could surface on first use, and their default model names are unverified | When a key is added |
+| Groq and Gemini are tested against a local stub, never a live key | A provider quirk could surface on first use, and their default model names are unverified | When a key is added |
 | SearXNG depends on upstream engines that can rate-limit or block it, and their terms may restrict automated use | `web_search` can fail or get worse without warning; the agent sees a tool error | Accepted for local use, revisit before deployment |
 | The task gate is a text check, so it has gaps and can wrongly refuse | Out-of-scope tasks can get through, though turn and token limits still bound their cost | Accepted |
 | Guest and signed-in limits are defined, but nothing uses them yet: no demo task, guest sessions, IP limits or fork expiry | These only matter for the public demo | Deferred |

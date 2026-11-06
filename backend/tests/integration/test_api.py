@@ -357,7 +357,7 @@ API_KEY = "gsk-very-secret-key-ABCD"
 
 def test_providers_list_what_is_usable(api: Api) -> None:
     providers = {item["name"]: item for item in api.client.get("/api/providers").json()}
-    assert set(providers) == {"groq", "gemini", "openrouter", "mock"}
+    assert set(providers) == {"groq", "gemini", "mock"}
     assert providers["groq"]["available"] is False
     assert providers["mock"]["available"] is True
 
