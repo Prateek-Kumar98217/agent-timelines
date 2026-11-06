@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     browser_url: str = "http://127.0.0.1:18081"
     gateway_url: str = "http://127.0.0.1:8100/mcp"
     gateway_token_secret: str = "local-development-only-secret-do-not-deploy"  # noqa: S105
+    convergence_threshold: float = 0.957
     otel_endpoint: str | None = None
     service_name: str = "agent-timelines"
     cache_ttl_seconds: int = 3600

@@ -16,6 +16,7 @@ from sqlalchemy import (
     CheckConstraint,
     Computed,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -187,6 +188,21 @@ class BranchState(Base):
     next_action: Mapped[str] = mapped_column(String(8))
     # True when the pending tool call was edited, so it must run live and skip the cache read.
     bypass_cache: Mapped[bool] = mapped_column(default=False)
+
+
+class BranchScore(Base):
+    """A task success score for a branch, from a deterministic check or an LLM judge."""
+
+    __tablename__ = "branch_scores"
+
+    branch_id: Mapped[UUID] = mapped_column(
+        ForeignKey("branches.id", ondelete="CASCADE"), primary_key=True
+    )
+    metric: Mapped[str] = mapped_column(String(64), primary_key=True)
+    score: Mapped[float] = mapped_column(Float)
+    reason: Mapped[str | None] = mapped_column(Text)
+    scorer: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class StepOutbox(Base):

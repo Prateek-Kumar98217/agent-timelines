@@ -1,4 +1,7 @@
-"""Knowledge base search. Hybrid mode merges vector and full-text rankings."""
+"""Knowledge base search. Vector is the default because it measured best: see docs/eval/recall.json.
+
+Text and hybrid modes stay available for comparison in evals/recall.py.
+"""
 
 from dataclasses import dataclass
 from enum import StrEnum
@@ -33,7 +36,7 @@ def search_kb(
     embedder: Embedder,
     query: str,
     limit: int = 5,
-    mode: SearchMode = SearchMode.HYBRID,
+    mode: SearchMode = SearchMode.VECTOR,
 ) -> list[KbHit]:
     with session_factory() as session:
         rankings = []
