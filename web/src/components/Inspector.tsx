@@ -361,7 +361,7 @@ export function Inspector({ open, node, branch, path, tools, onClose, onSelect, 
               ` Used ${node.input_tokens.toLocaleString()} tokens in, ${node.output_tokens.toLocaleString()} out.`}
           </p>
           <NodeBody node={node} />
-          {node.edited_from_id && (
+          {node.edited_from_id && node.type !== "user_msg" && (
             <p className="notice small">
               You edited this step.{" "}
               <button
@@ -376,10 +376,11 @@ export function Inspector({ open, node, branch, path, tools, onClose, onSelect, 
           {branch && isFinalAnswer(node) && ACTIVE_STATUSES.has(branch.branch.status) && (
             <p className="quiet small">This branch is still finishing.</p>
           )}
-          {node.type === "root" ? (
+          {node.type === "root" || node.type === "user_msg" ? (
             <p className="notice small" style={{ marginTop: "1rem" }}>
-              The task can't be edited. To try a different one, edit your first message, which is the
-              next step.
+              {node.type === "root"
+                ? "The task can't be changed. To explore another path, edit any later step."
+                : "This older branch changed the task, which is no longer possible. It stays here because it ran."}
             </p>
           ) : (
             <EditForm key={node.id} node={node} tools={tools} onForked={onForked} />

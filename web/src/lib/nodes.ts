@@ -158,6 +158,29 @@ export function describeBranches(tree: Tree): BranchInfo[] {
   });
 }
 
+/**
+ * Every tree stores its task twice: on the root, and as the first message the model reads. They're
+ * the same thing, so the map shows only the root. Older branches that edited that message stay
+ * visible, because what ran is never hidden.
+ */
+export function withoutTaskCopy(tree: Tree): Tree {
+  const copies = new Map(
+    tree.nodes
+      .filter((node) => node.type === "user_msg" && node.edited_from_id === null)
+      .map((node) => [node.id, node.parent_id]),
+  );
+  return {
+    ...tree,
+    nodes: tree.nodes
+      .filter((node) => !copies.has(node.id))
+      .map((node) =>
+        node.parent_id && copies.has(node.parent_id)
+          ? { ...node, parent_id: copies.get(node.parent_id) ?? null }
+          : node,
+      ),
+  };
+}
+
 /** The nodes from the root to `nodeId`, inclusive. */
 export function pathTo(tree: Tree, nodeId: string): TimelineNode[] {
   const byId = new Map(tree.nodes.map((node) => [node.id, node]));

@@ -154,8 +154,7 @@ def test_fork_creates_a_branch_and_it_runs(api: Api) -> None:
     ("node_type", "edit", "status"),
     [
         ("root", {"text": "x"}, 409),
-        ("user_msg", {"text": "the task"}, 422),
-        ("user_msg", {"text": ""}, 422),
+        ("user_msg", {"text": "a different task"}, 409),
         ("tool_call", {"arguments": {"wrong": 1}}, 422),
     ],
 )
@@ -428,11 +427,14 @@ def test_out_of_scope_tasks_are_refused_before_any_work(api: Api) -> None:
     assert api.client.get("/api/trees").json() == []
 
 
-def test_a_fork_cant_edit_the_task_into_something_out_of_scope(api: Api) -> None:
-    node = node_of(api.finished_tree(), "user_msg")
+def test_a_fork_cant_change_the_task(api: Api) -> None:
+    tree = api.finished_tree()
+    node = node_of(tree, "user_msg")
     response = api.client.post(
-        f"/api/nodes/{node['id']}/fork", json={"edit": {"text": "Write a Python script instead"}}
+        f"/api/nodes/{node['id']}/fork", json={"edit": {"text": "Another question entirely"}}
     )
-    assert response.status_code == 422
-    assert "not coding" in response.json()["detail"]
+    assert response.status_code == 409
+    assert "task can't be changed" in response.json()["detail"]
     assert api.harness.queue.depth() == 0
+    after = api.client.get(f"/api/trees/{tree['id']}").json()
+    assert len(after["branches"]) == len(tree["branches"])  # type: ignore[arg-type]

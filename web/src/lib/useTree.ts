@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { ENTRANCE_MS, timelineNow } from "./entrance";
+import { withoutTaskCopy } from "./nodes";
 import type { Tree } from "./types";
 
 const EVENT_TYPES = ["branch_created", "branch_status", "node_created"];
@@ -36,7 +37,7 @@ export function useTree(id: string) {
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
       try {
-        const next = await api.tree(id, signal);
+        const next = withoutTaskCopy(await api.tree(id, signal));
         // A slower, older response must not replace a newer one.
         if (next.last_event_seq < newest.current) return;
         newest.current = next.last_event_seq;

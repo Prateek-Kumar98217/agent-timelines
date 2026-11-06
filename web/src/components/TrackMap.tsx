@@ -32,33 +32,15 @@ import type { Arrivals } from "@/lib/useTree";
 
 const TERMINUS_HEIGHT = 44;
 const TERMINUS_GAP = 10;
-const MIN_READABLE_ZOOM = 0.75;
+const MIN_READABLE_ZOOM = 0.7;
 const VIEW_MARGIN = 28;
 const PANEL_WIDTH = 432;
-
-const ICONS: Record<BlockInfo["kind"], string> = {
-  task: "M4 2v12M4 3h8l-2 3 2 3H4",
-  you: "M2.5 3.5h11v7H7l-3 3v-3H2.5z",
-  model: "M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z",
-  call: "M10.5 2a3.5 3.5 0 0 0-3.2 4.9L2 12.2 3.8 14l5.3-5.3A3.5 3.5 0 0 0 13.6 4l-2.1 2.1-1.6-1.6L12 2.4A3.5 3.5 0 0 0 10.5 2z",
-  result: "M3.5 1.5h6l3 3v10h-9zM5.5 7.5h5M5.5 10.5h5",
-  answer: "M2.5 8.5l3.5 3.5 7.5-8",
-};
-
-function BlockIcon({ kind }: { kind: BlockInfo["kind"] }) {
-  return (
-    <svg className="block-icon" viewBox="0 0 16 16" aria-hidden="true">
-      <path d={ICONS[kind]} />
-    </svg>
-  );
-}
 
 type BlockData = {
   node: TimelineNode;
   selected: boolean;
   dim: boolean;
   entranceAt: number | undefined;
-  largestTokens: number;
   onSelect: (id: string) => void;
 };
 type TerminusData = {
@@ -68,7 +50,7 @@ type TerminusData = {
 };
 
 const BlockNode = memo(function BlockNode({ data }: NodeProps<Node<BlockData, "block">>) {
-  const { node, selected, dim, entranceAt, largestTokens, onSelect } = data;
+  const { node, selected, dim, entranceAt, onSelect } = data;
   const info: BlockInfo = blockInfo(node);
   const edited = node.edited_from_id !== null;
   const tokens = node.input_tokens + node.output_tokens;
@@ -96,34 +78,18 @@ const BlockNode = memo(function BlockNode({ data }: NodeProps<Node<BlockData, "b
         onClick={() => onSelect(node.id)}
       >
         <span className="block-head">
-          <BlockIcon kind={info.kind} />
           <span className="tag">{info.tag}</span>
-          {edited && <span className="flag flag-edited">Edited</span>}
-          {isToolError(node) && <span className="flag flag-error">Error</span>}
+          {edited && <span className="tag tag-edited">Edited</span>}
+          {isToolError(node) && <span className="tag tag-error">Error</span>}
           {node.turn_index > 0 && <span className="block-turn">Turn {node.turn_index}</span>}
         </span>
-        <span className="block-body">
-          {info.heading && <span className="block-heading">{info.heading}</span>}
-          <span
-            className={[
-              "block-summary",
-              info.heading && "block-summary-short",
-              info.kind === "call" && "mono",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          >
-            {info.summary}
-          </span>
-          {tokens > 0 && (
-            <span className="block-tokens">
-              <span>{tokens.toLocaleString()} tokens</span>
-              <span className="meter" aria-hidden="true">
-                <span style={{ width: `${Math.max(4, (tokens / largestTokens) * 100)}%` }} />
-              </span>
-            </span>
-          )}
+        {info.heading && <span className="block-heading">{info.heading}</span>}
+        <span className={`block-summary ${info.heading ? "block-summary-short" : ""}`}>
+          {info.summary}
         </span>
+        {(info.kind === "model" || info.kind === "answer") && (
+          <span className="block-tokens">{tokens.toLocaleString()} tokens</span>
+        )}
       </button>
       <Handle className="flow-handle" type="source" position={Position.Bottom} isConnectable={false} />
     </>
@@ -297,10 +263,6 @@ export function TrackMap({
     let maxX = 0;
     let maxY = 0;
     let follow: { x: number; y: number; at: number } | null = null;
-    const largestTokens = Math.max(
-      1,
-      ...tree.nodes.map((node) => node.input_tokens + node.output_tokens),
-    );
     for (const stop of stops.values()) {
       const { node } = stop;
       const place = position(stop.lane, stop.depth);
@@ -323,7 +285,6 @@ export function TrackMap({
           selected: node.id === selectedNodeId,
           dim: !highlighted.has(node.id),
           entranceAt,
-          largestTokens,
           onSelect: onSelectNode,
         },
       });

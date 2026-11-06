@@ -111,13 +111,16 @@ def check_run_forks_and_stream() -> None:
     before = {n["id"]: n["payload"] for n in data["nodes"]}
 
     edits = [
-        (nodes["user_msg"]["id"], {"text": "How tall is K2?"}),
         (nodes["llm_output"]["id"], {"text": "I know this: 8,849 m."}),
         (nodes["tool_call"]["id"], {"arguments": {"query": "Everest in feet"}}),
         (nodes["tool_result"]["id"], {"content": "Edited evidence"}),
     ]
     forks = [fork(node_id, edit) for node_id, edit in edits]
-    forks += [fork(nodes["user_msg"]["id"], {"text": f"Parallel {i}"}) for i in range(16)]
+    forks += [fork(nodes["tool_result"]["id"], {"content": f"Parallel {i}"}) for i in range(16)]
+    refused_task = client.post(
+        f"/api/nodes/{nodes['user_msg']['id']}/fork", json={"edit": {"text": "How tall is K2?"}}
+    )
+    assert refused_task.status_code == 409, refused_task.text
     statuses = wait_finished(tree_id, forks)
     assert set(statuses.values()) == {"completed"}, statuses
 
@@ -159,13 +162,13 @@ def check_limits_and_scope() -> None:
 
     tree_id, main = create("Reach the branch cap")
     assert wait_finished(tree_id, [main])[main] == "completed"
-    user_msg = nodes_of(tree(tree_id), main)[1]["id"]
+    result_id = next(n["id"] for n in nodes_of(tree(tree_id), main) if n["type"] == "tool_result")
     # More than the cap of 30, sent at once, so the database lock has to hold under real load.
-    edits = [{"text": f"Cap test {i}"} for i in range(40)]
+    edits = [{"content": f"Cap test {i}"} for i in range(40)]
     with ThreadPoolExecutor(10) as pool:
         responses = list(
             pool.map(
-                lambda edit: client.post(f"/api/nodes/{user_msg}/fork", json={"edit": edit}), edits
+                lambda edit: client.post(f"/api/nodes/{result_id}/fork", json={"edit": edit}), edits
             )
         )
     accepted = [r.json()["id"] for r in responses if r.status_code == 201]

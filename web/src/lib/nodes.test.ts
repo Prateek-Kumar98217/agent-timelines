@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockInfo } from "./nodes";
+import { blockInfo, withoutTaskCopy } from "./nodes";
 import type { TimelineNode } from "./types";
 
 function node(type: TimelineNode["type"], payload: Record<string, unknown>): TimelineNode {
@@ -17,6 +17,33 @@ function node(type: TimelineNode["type"], payload: Record<string, unknown>): Tim
     created_at: "2026-01-01T00:00:00Z",
   };
 }
+
+describe("withoutTaskCopy", () => {
+  const at = (id: string, parent: string | null, type: TimelineNode["type"], edited: string | null = null) => ({
+    ...node(type, {}),
+    id,
+    parent_id: parent,
+    edited_from_id: edited,
+  });
+  const tree = (nodes: TimelineNode[]) => ({ id: "t", branches: [], nodes, last_event_seq: 0 });
+
+  it("hides the first message and joins the next step to the task", () => {
+    const shown = withoutTaskCopy(
+      tree([at("r", null, "root"), at("u", "r", "user_msg"), at("m", "u", "llm_output")]),
+    );
+    expect(shown.nodes.map((entry) => [entry.id, entry.parent_id])).toEqual([
+      ["r", null],
+      ["m", "r"],
+    ]);
+  });
+
+  it("keeps older branches that edited the message", () => {
+    const shown = withoutTaskCopy(
+      tree([at("r", null, "root"), at("u", "r", "user_msg"), at("e", "r", "user_msg", "u")]),
+    );
+    expect(shown.nodes.map((entry) => entry.id)).toEqual(["r", "e"]);
+  });
+});
 
 describe("blockInfo", () => {
   it("gives every step type its own tag", () => {

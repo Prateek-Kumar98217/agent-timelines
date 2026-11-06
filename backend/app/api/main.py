@@ -42,6 +42,9 @@ from app.domain.limits import AdmissionRejectedError
 from app.domain.task_gate import task_problem
 from app.ports import Principal
 
+# The first message holds the task, and a tree's task never changes. The engine can still fork from
+# it, because the edit sensitivity evaluation measures that directly, but no user can reach it.
+TASK_IS_FIXED = "the task can't be changed; edit a later step instead"
 MIN_KEY_CHARS = 8
 MAX_KEY_CHARS = 500
 
@@ -262,6 +265,8 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
             if node is None:
                 raise HTTPException(404, f"node {node_id} not found")
             require_tree(session, node.tree_id, principal)
+            if node.type == NodeType.USER_MSG.value:
+                raise HTTPException(409, TASK_IS_FIXED)
         try:
             branch_id = fork_from_edit(rt.deps, principal.user_id, node_id, body.edit)
         except NodeNotFoundError as exc:

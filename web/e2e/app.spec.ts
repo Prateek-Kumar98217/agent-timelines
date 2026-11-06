@@ -56,7 +56,7 @@ test("a task runs live and appears in the task list", async ({ page }) => {
 
 test("a sidebar can't drag the page sideways", async ({ page }) => {
   await startTask(page);
-  await stop(page, "Your message, turn 0").click();
+  await stop(page, "Tool call: KB search, turn 1").click();
   await page.getByRole("button", { name: "Create branch" }).focus();
   await page.waitForTimeout(400);
   const stage = await page.locator(".stage").evaluate((element) => element.scrollLeft);
@@ -82,13 +82,14 @@ test("live updates recover after the stream fails with a server error", async ({
 test("every step shows its type and content without being opened", async ({ page }) => {
   const task = await startTask(page);
   await expect(page.locator(".block-task")).toContainText(task);
-  await expect(page.locator(".block-you .tag")).toHaveText("You");
   await expect(page.locator(".block-model .tag").first()).toHaveText("Model");
   await expect(page.locator(".block-call").first()).toContainText("KB search");
   await expect(page.locator(".block-result .tag").first()).toHaveText("Tool result");
   await expect(page.locator(".block-answer")).toContainText("Answer to");
-  await expect(page.locator(".block-model").first()).toContainText("tokens");
-  await expect(page.locator(".block-model .meter").first()).toBeVisible();
+  await expect(page.locator(".block-model").first()).toContainText(/\d tokens/);
+  await expect(page.locator(".block-answer")).toContainText(/\d tokens/);
+  await expect(page.locator(".block-call").first()).not.toContainText("tokens");
+  await expect(page.locator(".block-result").first()).not.toContainText("tokens");
 });
 
 test("the timeline runs from top to bottom, and forks step to the right", async ({ page }) => {
@@ -116,7 +117,7 @@ test("sidebars slide in on request and close with Escape", async ({ page }) => {
   await startTask(page);
   const steps = page.locator(".sidebar-right");
   await expect(steps).not.toHaveClass(/sidebar-open/);
-  await stop(page, "Your message, turn 0").click();
+  await stop(page, "Task, turn 0").click();
   await expect(steps).toHaveClass(/sidebar-open/);
   await page.keyboard.press("Escape");
   await expect(steps).not.toHaveClass(/sidebar-open/);
@@ -210,7 +211,7 @@ test("clicking steps and branches never replays an entrance", async ({ page }) =
   await forkAnswerAndSettle(page, "Another new answer.");
   const before = (await entrances(page)).length;
 
-  await stop(page, "Your message, turn 0").click();
+  await stop(page, "Task, turn 0").click();
   expect(await playing(page)).toEqual([]);
   await stop(page, "Tool call: KB search, turn 1").click();
   await page.locator(".terminus").first().click();
@@ -249,17 +250,21 @@ test("a second new step plays only its own entrance", async ({ page }) => {
 test("the root can't be edited", async ({ page }) => {
   await startTask(page);
   await stop(page, "Task, turn 0").click();
-  await expect(page.getByText("The task can't be edited.")).toBeVisible();
+  await expect(page.getByText("The task can't be changed.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Create branch" })).toHaveCount(0);
 });
 
-test("editing your message runs the model on a new branch", async ({ page }) => {
+test("the task appears once and can't be changed, even through the API", async ({ page }) => {
   await startTask(page);
-  await stop(page, "Your message, turn 0").click();
-  await page.getByRole("textbox", { name: "Message" }).fill("A different question about Hubble");
-  const row = await createBranchAndWait(page, "Branch 1");
-  await expect(row).toContainText("Edited your message");
-  await expect(branchRow(page, "Original run")).toContainText("Finished");
+  await expect(page.locator(".block-task")).toHaveCount(1);
+  await expect(page.locator(".block-you")).toHaveCount(0);
+  const id = new URL(page.url()).searchParams.get("id");
+  const tree = await (await page.request.get(`/api/trees/${id}`)).json();
+  const message = tree.nodes.find((node: { type: string }) => node.type === "user_msg");
+  const response = await page.request.post(`/api/nodes/${message.id}/fork`, {
+    data: { edit: { text: "A different task" } },
+  });
+  expect(response.status()).toBe(409);
 });
 
 test("a final answer edit closes the branch without running anything", async ({ page }) => {
@@ -297,7 +302,7 @@ test("editing a tool result continues from it, and the original stays", async ({
 
 test("an edit that changes nothing is refused with a reason", async ({ page }) => {
   await startTask(page);
-  await stop(page, "Your message, turn 0").click();
+  await stop(page, "Tool call: KB search, turn 1").click();
   await page.getByRole("button", { name: "Create branch" }).click();
   await expect(page.locator(".edit-form .error")).toHaveText("the edit doesn't change the node");
   await openBranches(page);
@@ -352,7 +357,7 @@ test("an unknown task shows where to go next", async ({ page }) => {
 test("the workspace has no sideways scroll at phone width", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await startTask(page);
-  await stop(page, "Your message, turn 0").click();
+  await stop(page, "Task, turn 0").click();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );

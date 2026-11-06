@@ -1,9 +1,9 @@
 import type { TimelineNode, Tree } from "./types";
 
-export const BLOCK_WIDTH = 284;
-export const BLOCK_HEIGHT = 148;
-export const STEP_Y = 212;
-export const LANE_X = 320;
+export const BLOCK_WIDTH = 248;
+export const BLOCK_HEIGHT = 112;
+export const STEP_Y = 172;
+export const LANE_X = 288;
 
 export interface Stop {
   node: TimelineNode;
