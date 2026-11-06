@@ -23,7 +23,7 @@ function Step({
         stroke={answer ? "var(--text)" : "var(--line)"}
         strokeWidth="1.5"
       />
-      <rect x="10" y="9" width={tag.length * 7 + 16} height="20" rx="10" fill={color} />
+      <rect x="10" y="9" width={tag.length * 7.6 + 18} height="20" rx="10" fill={color} />
       <text x="18" y="24" fill={answer ? "var(--text)" : "#000"} fontWeight="700" fontSize="13">
         {tag}
       </text>

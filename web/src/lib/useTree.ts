@@ -2,17 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { ENTRANCE_MS, timelineNow } from "./entrance";
 import type { Tree } from "./types";
 
 const EVENT_TYPES = ["branch_created", "branch_status", "node_created"];
 const REFRESH_DELAY_MS = 200;
 const REOPEN_DELAY_MS = 2000;
-/** Steps that arrive together play one after another, this far apart. */
-const ENTRANCE_STAGGER_MS = 550;
+/** New steps play one after another, so a burst still reads as a sequence. */
+const ENTRANCE_GAP_MS = ENTRANCE_MS - 200;
+/** Gives React time to put a new block on the page before its entrance begins. */
+const ENTRANCE_LEAD_MS = 60;
 
 export type Connection = "connecting" | "live" | "reconnecting";
 
-/** Which steps arrived after the page opened, with the delay before each one's entrance. */
+/** Which steps arrived after the page opened, with the moment each one's entrance starts. */
 export type Arrivals = ReadonlyMap<string, number>;
 
 const NO_ARRIVALS: Arrivals = new Map();
@@ -28,6 +31,7 @@ export function useTree(id: string) {
   const [connection, setConnection] = useState<Connection>("connecting");
   const newest = useRef(-1);
   const known = useRef<Set<string> | null>(null);
+  const nextEntrance = useRef(0);
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
@@ -41,12 +45,12 @@ export function useTree(id: string) {
         // Everything on the first load was already there, so only later steps get an entrance.
         const added = seen ? next.nodes.filter((node) => !seen.has(node.id)) : [];
         if (added.length > 0) {
-          // Entries stay after they play. Dropping one mid-entrance would cut it short.
-          setArrivals((current) => {
-            const merged = new Map(current);
-            added.forEach((node, index) => merged.set(node.id, index * ENTRANCE_STAGGER_MS));
-            return merged;
+          const starts = added.map((node) => {
+            const startsAt = Math.max(timelineNow() + ENTRANCE_LEAD_MS, nextEntrance.current);
+            nextEntrance.current = startsAt + ENTRANCE_GAP_MS;
+            return [node.id, startsAt] as const;
           });
+          setArrivals((current) => new Map([...current, ...starts]));
         }
         setTree(next);
         setError(null);

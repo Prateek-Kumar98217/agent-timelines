@@ -88,6 +88,7 @@ test("every step shows its type and content without being opened", async ({ page
   await expect(page.locator(".block-result .tag").first()).toHaveText("Tool result");
   await expect(page.locator(".block-answer")).toContainText("Answer to");
   await expect(page.locator(".block-model").first()).toContainText("tokens");
+  await expect(page.locator(".block-model .meter").first()).toBeVisible();
 });
 
 test("the timeline runs from top to bottom, and forks step to the right", async ({ page }) => {
@@ -125,33 +126,124 @@ test("sidebars slide in on request and close with Escape", async ({ page }) => {
   await expect(page.locator(".sidebar-left")).not.toHaveClass(/sidebar-open/);
 });
 
-test("a new step pops up, then its arrow draws from the step before", async ({ page }) => {
-  await startTask(page);
-  // Steps that were already there when the page opened don't play an entrance.
-  await page.reload();
-  await page.locator(".block").first().waitFor();
-  await expect(page.locator(".block-arriving")).toHaveCount(0);
-  await showWholeMap(page);
-  await stop(page, "Tool result: KB search, turn 1").click();
-  await page.getByRole("textbox", { name: "Result" }).fill("Another result.");
-  await page.getByRole("button", { name: "Create branch" }).click();
-  const block = page.locator(".block-arriving").first();
-  await expect(block).toBeVisible({ timeout: LIVE_TIMEOUT });
-  const arrow = page.locator(".arrow-arriving").first();
-  await expect(arrow).toBeAttached();
-  const timings = await page.evaluate(() => {
-    const read = (selector: string) => getComputedStyle(document.querySelector(selector)!);
-    return {
-      block: read(".block-arriving").animationName,
-      line: read(".arrow-arriving .arrow-line").animationName,
-      lineDelay: parseFloat(read(".arrow-arriving .arrow-line").animationDelay),
-      blockLength: parseFloat(read(".block-arriving").animationDuration),
+/** Records every entrance as it's created, so a replay can't slip through unnoticed. */
+async function recordEntrances(page: Page) {
+  await page.addInitScript(() => {
+    const entrances: { id: string; of: string; delay: number }[] = [];
+    (window as unknown as { entrances: typeof entrances }).entrances = entrances;
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (keyframes, options) {
+      const animation = animate.call(this, keyframes, options);
+      if (typeof options === "object" && options.id) {
+        const owner = this.closest("[data-arrow]")?.getAttribute("data-arrow");
+        entrances.push({
+          id: options.id,
+          of: owner ?? this.getAttribute("data-step") ?? "",
+          delay: Number(options.delay ?? 0),
+        });
+      }
+      return animation;
     };
   });
-  expect(timings.block).toBe("block-pop");
-  expect(timings.line).toBe("arrow-draw");
-  // The arrow can't start until the block has finished popping up.
-  expect(timings.lineDelay).toBeGreaterThanOrEqual(timings.blockLength);
+}
+
+const entrances = (page: Page) =>
+  page.evaluate(() => (window as unknown as { entrances: { id: string; of: string; delay: number }[] }).entrances);
+
+const distinctTargets = async (page: Page, id: string) =>
+  new Set((await entrances(page)).filter((entry) => entry.id === id).map((entry) => entry.of));
+
+/** Which entrances are playing or waiting right now. */
+const playing = (page: Page) =>
+  page.evaluate(() => document.getAnimations().map((animation) => animation.id).filter(Boolean));
+
+async function forkAnswerAndSettle(page: Page, text: string) {
+  await stop(page, "Model's decision, turn 1").click();
+  await page.getByLabel("Give a final answer").check();
+  await page.getByRole("textbox", { name: "Answer" }).fill(text);
+  await page.getByRole("button", { name: "Create branch" }).click();
+  await expect(page.getByRole("button", { name: "Final answer, turn 1, edited" })).toBeVisible({
+    timeout: LIVE_TIMEOUT,
+  });
+  await page.waitForTimeout(1200);
+}
+
+test("steps already on the page when it opens play no entrance", async ({ page }) => {
+  await recordEntrances(page);
+  await startTask(page);
+  await page.reload();
+  await page.locator(".block").first().waitFor();
+  await page.waitForTimeout(800);
+  expect(await entrances(page)).toEqual([]);
+});
+
+test("a new step pops up, then one arrow draws to it from the step before", async ({ page }) => {
+  await startTask(page);
+  await recordEntrances(page);
+  await page.reload();
+  await page.locator(".block").first().waitFor();
+  await showWholeMap(page);
+  await forkAnswerAndSettle(page, "A new answer.");
+
+  // Only one step is new, so only its block and its one arrow play.
+  const newStep = await page
+    .getByRole("button", { name: "Final answer, turn 1, edited" })
+    .getAttribute("data-step");
+  expect([...(await distinctTargets(page, "block-pop"))]).toEqual([newStep]);
+  const arrows = [...(await distinctTargets(page, "arrow-draw"))];
+  expect(arrows).toHaveLength(1);
+  expect(arrows[0]!.endsWith(`-${newStep}`)).toBe(true);
+
+  // The arrow waits for the block to finish popping up, and the head lands last.
+  const delay = (id: string) =>
+    entrances(page).then((all) => all.find((entry) => entry.id === id)!.delay);
+  expect(await delay("arrow-draw")).toBeGreaterThanOrEqual(320);
+  expect(await delay("arrow-head")).toBeGreaterThan(await delay("arrow-draw"));
+});
+
+test("clicking steps and branches never replays an entrance", async ({ page }) => {
+  await startTask(page);
+  await recordEntrances(page);
+  await page.reload();
+  await page.locator(".block").first().waitFor();
+  await showWholeMap(page);
+  await forkAnswerAndSettle(page, "Another new answer.");
+  const before = (await entrances(page)).length;
+
+  await stop(page, "Your message, turn 0").click();
+  expect(await playing(page)).toEqual([]);
+  await stop(page, "Tool call: KB search, turn 1").click();
+  await page.locator(".terminus").first().click();
+  await page.waitForTimeout(300);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+
+  expect(await playing(page)).toEqual([]);
+  expect((await entrances(page)).length).toBe(before);
+});
+
+test("a second new step plays only its own entrance", async ({ page }) => {
+  await startTask(page);
+  await recordEntrances(page);
+  await page.reload();
+  await page.locator(".block").first().waitFor();
+  await showWholeMap(page);
+  await forkAnswerAndSettle(page, "First new answer.");
+  const first = await distinctTargets(page, "arrow-draw");
+  await page.evaluate(() => {
+    (window as unknown as { entrances: unknown[] }).entrances.length = 0;
+  });
+
+  await stop(page, "Model's decision, turn 2").click();
+  await page.getByLabel("Give a final answer").check();
+  await page.getByRole("textbox", { name: "Answer" }).fill("Second new answer.");
+  await page.getByRole("button", { name: "Create branch" }).click();
+  await expect(page.locator(".block-edited")).toHaveCount(2, { timeout: LIVE_TIMEOUT });
+  await page.waitForTimeout(1200);
+
+  const second = [...(await distinctTargets(page, "arrow-draw"))];
+  expect(second).toHaveLength(1);
+  expect(first.has(second[0]!)).toBe(false);
 });
 
 test("the root can't be edited", async ({ page }) => {

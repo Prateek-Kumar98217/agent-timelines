@@ -15,7 +15,8 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/base.css";
-import { type CSSProperties, memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
+import { ARROW_DRAW, ARROW_HEAD, BLOCK_POP, ENTRANCE_MS, timelineNow, useEntrance } from "@/lib/entrance";
 import { BLOCK_HEIGHT, BLOCK_WIDTH, LANE_X, STEP_Y, arrowHead, arrowPath, layoutTree } from "@/lib/layout";
 import {
   ACTIVE_STATUSES,
@@ -31,18 +32,33 @@ import type { Arrivals } from "@/lib/useTree";
 
 const TERMINUS_HEIGHT = 44;
 const TERMINUS_GAP = 10;
-const MIN_READABLE_ZOOM = 0.7;
+const MIN_READABLE_ZOOM = 0.75;
 const VIEW_MARGIN = 28;
 const PANEL_WIDTH = 432;
 
-const delayStyle = (delay: number | undefined): CSSProperties | undefined =>
-  delay === undefined ? undefined : ({ "--entrance-delay": `${delay}ms` } as CSSProperties);
+const ICONS: Record<BlockInfo["kind"], string> = {
+  task: "M4 2v12M4 3h8l-2 3 2 3H4",
+  you: "M2.5 3.5h11v7H7l-3 3v-3H2.5z",
+  model: "M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z",
+  call: "M10.5 2a3.5 3.5 0 0 0-3.2 4.9L2 12.2 3.8 14l5.3-5.3A3.5 3.5 0 0 0 13.6 4l-2.1 2.1-1.6-1.6L12 2.4A3.5 3.5 0 0 0 10.5 2z",
+  result: "M3.5 1.5h6l3 3v10h-9zM5.5 7.5h5M5.5 10.5h5",
+  answer: "M2.5 8.5l3.5 3.5 7.5-8",
+};
+
+function BlockIcon({ kind }: { kind: BlockInfo["kind"] }) {
+  return (
+    <svg className="block-icon" viewBox="0 0 16 16" aria-hidden="true">
+      <path d={ICONS[kind]} />
+    </svg>
+  );
+}
 
 type BlockData = {
   node: TimelineNode;
   selected: boolean;
   dim: boolean;
-  entranceDelay: number | undefined;
+  entranceAt: number | undefined;
+  largestTokens: number;
   onSelect: (id: string) => void;
 };
 type TerminusData = {
@@ -52,17 +68,18 @@ type TerminusData = {
 };
 
 const BlockNode = memo(function BlockNode({ data }: NodeProps<Node<BlockData, "block">>) {
-  const { node, selected, dim, entranceDelay, onSelect } = data;
+  const { node, selected, dim, entranceAt, largestTokens, onSelect } = data;
   const info: BlockInfo = blockInfo(node);
   const edited = node.edited_from_id !== null;
   const tokens = node.input_tokens + node.output_tokens;
+  const element = useRef<HTMLButtonElement>(null);
+  useEntrance(element, node.id, entranceAt, BLOCK_POP);
   const classes = [
     "block",
     `block-${info.kind}`,
     selected && "block-selected",
     dim && "block-dim",
     edited && "block-edited",
-    entranceDelay !== undefined && "block-arriving",
   ]
     .filter(Boolean)
     .join(" ");
@@ -70,24 +87,43 @@ const BlockNode = memo(function BlockNode({ data }: NodeProps<Node<BlockData, "b
     <>
       <Handle className="flow-handle" type="target" position={Position.Top} isConnectable={false} />
       <button
+        ref={element}
         className={`${classes} nodrag nopan`}
-        style={delayStyle(entranceDelay)}
+        data-step={node.id}
         type="button"
         aria-pressed={selected}
         aria-label={`${stepTitle(node)}, turn ${node.turn_index}${edited ? ", edited" : ""}`}
         onClick={() => onSelect(node.id)}
       >
         <span className="block-head">
+          <BlockIcon kind={info.kind} />
           <span className="tag">{info.tag}</span>
-          {edited && <span className="tag tag-edited">Edited</span>}
-          {isToolError(node) && <span className="tag tag-error">Error</span>}
+          {edited && <span className="flag flag-edited">Edited</span>}
+          {isToolError(node) && <span className="flag flag-error">Error</span>}
           {node.turn_index > 0 && <span className="block-turn">Turn {node.turn_index}</span>}
         </span>
-        {info.heading && <span className="block-heading">{info.heading}</span>}
-        <span className={`block-summary ${info.heading ? "block-summary-short" : ""}`}>
-          {info.summary}
+        <span className="block-body">
+          {info.heading && <span className="block-heading">{info.heading}</span>}
+          <span
+            className={[
+              "block-summary",
+              info.heading && "block-summary-short",
+              info.kind === "call" && "mono",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {info.summary}
+          </span>
+          {tokens > 0 && (
+            <span className="block-tokens">
+              <span>{tokens.toLocaleString()} tokens</span>
+              <span className="meter" aria-hidden="true">
+                <span style={{ width: `${Math.max(4, (tokens / largestTokens) * 100)}%` }} />
+              </span>
+            </span>
+          )}
         </span>
-        {tokens > 0 && <span className="block-tokens">{tokens.toLocaleString()} tokens</span>}
       </button>
       <Handle className="flow-handle" type="source" position={Position.Bottom} isConnectable={false} />
     </>
@@ -116,14 +152,22 @@ const TerminusNode = memo(function TerminusNode({ data }: NodeProps<Node<Terminu
   );
 });
 
-type ArrowData = { kind: string; entranceDelay: number | undefined };
+type ArrowData = { kind: string; entranceAt: number | undefined };
 
-function ArrowEdge({ sourceX, sourceY, targetX, targetY, data }: EdgeProps<Edge<ArrowData>>) {
-  const arriving = data?.entranceDelay !== undefined;
+function ArrowEdge({ id, sourceX, sourceY, targetX, targetY, data }: EdgeProps<Edge<ArrowData>>) {
+  const line = useRef<SVGPathElement>(null);
+  const head = useRef<SVGPathElement>(null);
+  useEntrance(line, id, data?.entranceAt, ARROW_DRAW);
+  useEntrance(head, id, data?.entranceAt, ARROW_HEAD);
   return (
-    <g className={`arrow ${data?.kind ?? ""} ${arriving ? "arrow-arriving" : ""}`} style={delayStyle(data?.entranceDelay)}>
-      <path className="arrow-line" pathLength={1} d={arrowPath(sourceX, sourceY, targetX, targetY - 8)} />
-      <path className="arrow-head" d={arrowHead(targetX, targetY)} />
+    <g className={`arrow ${data?.kind ?? ""}`} data-arrow={id}>
+      <path
+        ref={line}
+        className="arrow-line"
+        pathLength={1}
+        d={arrowPath(sourceX, sourceY, targetX, targetY - 8)}
+      />
+      <path ref={head} className="arrow-head" d={arrowHead(targetX, targetY)} />
     </g>
   );
 }
@@ -142,7 +186,7 @@ function ViewControl({
   width: number;
   height: number;
   frame: React.RefObject<HTMLDivElement | null>;
-  follow: { x: number; y: number } | null;
+  follow: { x: number; y: number; at: number } | null;
   panelOpen: boolean;
 }) {
   const { setViewport, getViewport } = useReactFlow();
@@ -173,9 +217,13 @@ function ViewControl({
 
   const followX = follow?.x;
   const followY = follow?.y;
+  const followAt = follow?.at;
   useEffect(() => {
     const box = frame.current;
-    if (followX === undefined || followY === undefined || !box || !opened.current) return;
+    if (followX === undefined || followY === undefined || followAt === undefined) return;
+    if (!box || !opened.current) return;
+    // Only a step that's arriving now moves the view. Picking another branch never does.
+    if (timelineNow() > followAt + ENTRANCE_MS) return;
     const { x, y, zoom } = getViewport();
     // A new step must not land underneath the open sidebar, where its entrance would go unseen.
     const covered = panelIsOpen.current ? PANEL_WIDTH : 0;
@@ -195,7 +243,7 @@ function ViewControl({
       },
       { duration: 450 },
     );
-  }, [followX, followY, frame, getViewport, setViewport]);
+  }, [followX, followY, followAt, frame, getViewport, setViewport]);
 
   return null;
 }
@@ -248,17 +296,19 @@ export function TrackMap({
     const position = (lane: number, depth: number) => ({ x: lane * LANE_X, y: depth * STEP_Y });
     let maxX = 0;
     let maxY = 0;
-    let follow: { x: number; y: number } | null = null;
-    let newest = -1;
+    let follow: { x: number; y: number; at: number } | null = null;
+    const largestTokens = Math.max(
+      1,
+      ...tree.nodes.map((node) => node.input_tokens + node.output_tokens),
+    );
     for (const stop of stops.values()) {
       const { node } = stop;
       const place = position(stop.lane, stop.depth);
       maxX = Math.max(maxX, place.x + BLOCK_WIDTH);
       maxY = Math.max(maxY, place.y + BLOCK_HEIGHT + TERMINUS_GAP + TERMINUS_HEIGHT);
-      const entranceDelay = arrivals.get(node.id);
-      if (entranceDelay !== undefined && highlighted.has(node.id) && stop.depth > newest) {
-        newest = stop.depth;
-        follow = place;
+      const entranceAt = arrivals.get(node.id);
+      if (entranceAt !== undefined && highlighted.has(node.id) && (!follow || entranceAt > follow.at)) {
+        follow = { ...place, at: entranceAt };
       }
       flowNodes.push({
         id: node.id,
@@ -272,7 +322,8 @@ export function TrackMap({
           node,
           selected: node.id === selectedNodeId,
           dim: !highlighted.has(node.id),
-          entranceDelay,
+          entranceAt,
+          largestTokens,
           onSelect: onSelectNode,
         },
       });
@@ -289,7 +340,7 @@ export function TrackMap({
           type: "arrow",
           selectable: false,
           focusable: false,
-          data: { kind, entranceDelay },
+          data: { kind, entranceAt },
         });
       }
     }
