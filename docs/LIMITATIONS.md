@@ -11,8 +11,6 @@ tested, along with what closed it.
 | Limitation | Risk until closed | Closes in |
 |---|---|---|
 | Groq, Gemini and OpenRouter are tested against a local stub, never a live key | A provider quirk could surface on first use, and their default model names are unverified | When a key is added |
-| Hidden model thinking counts toward the token budget, and small models may use most of it | Branches can run out of budget sooner than their visible text suggests | 8 |
-| Short tasks can finish in 2 turns, under the 4 to 12 turn target | Forks have fewer nodes to diverge from | 8 |
 | SearXNG depends on upstream engines that can rate-limit or block it, and their terms may restrict automated use | `web_search` can fail or get worse without warning; the agent sees a tool error | Accepted for local use, revisit before deployment |
 | The task gate is a text check, so it has gaps and can wrongly refuse | Out-of-scope tasks can get through, though turn and token limits still bound their cost | Accepted |
 | Guest and signed-in limits are defined, but nothing uses them yet: no demo task, guest sessions, IP limits or fork expiry | These only matter for the public demo | Deferred |
@@ -26,6 +24,9 @@ tested, along with what closed it.
 | A small model may answer from a fetched page without ever calling `task_search` | The store is there but goes unused on short tasks. In the live check `qwen3:4b` skipped it even when the task asked for it | Accepted |
 | `docker compose --profile ollama up --wait` exits with an error once `ollama-pull` finishes, though the stack is healthy | A script relying on the exit code would stop. CI doesn't use this profile | Accepted |
 | Pages fetched before this change have no entries in the store | Older branches can't search their pages, because history isn't rewritten | Accepted |
+| Similarity can't tell a changed fact from the same fact | Edits that contradict a source changed the facts in 62% of runs and were flagged as diverged in 7%, so compare marks the changed words too | Accepted |
+| The convergence threshold comes from one model on 8 tasks | It may not suit other models, so it's a setting | Accepted |
+| The judge hasn't scored the experiment yet | Task success so far comes from deterministic fact checks only | 8 |
 | External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
 | The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
 | CI has never run on GitHub because the repo has no remote | A workflow problem could go unnoticed | When a remote is added |
@@ -34,6 +35,9 @@ tested, along with what closed it.
 
 | Limitation | Closed by | Milestone |
 |---|---|---|
+| Hidden model thinking counts toward the token budget | Raised the branch budget to 40,000 tokens. None of the 136 experiment branches ran out | 8 |
+| Short tasks could finish under the 4 to 12 turn target | Tasks ask for each step explicitly. All 8 main runs took 4 to 6 turns | 8 |
+| Compare had no semantic score | Added similarity with a threshold calibrated from no-op forks | 8 |
 | Concurrency tests only simulated two workers | Real-thread tests against Postgres, which found and fixed a worker and fork deadlock | 3 |
 | LLM errors other than rate limits failed the branch straight away | Transient errors retry with backoff, then fail at the attempt limit | 5 |
 | Tool results were stored at full size | Results are truncated to a per-tree limit with a visible marker | 5 |

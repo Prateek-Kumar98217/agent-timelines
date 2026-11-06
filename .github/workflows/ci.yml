@@ -67,6 +67,8 @@ jobs:
         run: uv run --no-sync playwright install --with-deps chromium
       - name: Test the browser service
         run: uv run --no-sync pytest browser_service -q
+      - name: Test the evaluation code
+        run: uv run --no-sync pytest evals/tests -q -p no:cacheprovider
       - name: Check dependencies at runtime
         run: uv run --no-sync python -W ignore scripts/check_runtime.py --with-model --with-browser
 

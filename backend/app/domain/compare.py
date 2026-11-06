@@ -12,9 +12,10 @@ from app.db.models import Branch, BranchScore, BranchState, Node, NodeType
 from app.domain.queries import path_to
 from app.ports import Embedder
 
-# Final answers at least this similar count as converged. Calibrated against no-op forks by
-# evals/edit_sensitivity.py; see docs/eval/edit_sensitivity.md.
-DEFAULT_CONVERGENCE_THRESHOLD = 0.9
+# Final answers at least this similar count as converged: the 10th percentile of no-op forks, from
+# evals/edit_sensitivity.py with qwen3:4b. It says the wording matches, not that the facts do. See
+# docs/eval/edit_sensitivity.md.
+DEFAULT_CONVERGENCE_THRESHOLD = 0.957
 
 
 class BranchesNotComparableError(Exception):
