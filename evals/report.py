@@ -157,6 +157,20 @@ def render(runs: list[dict[str, Any]], prices: dict[str, Any]) -> str:
     median_out = round(statistics.median(run["output_tokens"] for run in priced))
     lines += [
         "",
+        "## Reading these results",
+        "",
+        "- **Similarity follows wording, not facts.** Compare the Diverged and Facts changed "
+        "columns: an edit can change the answer's facts while the text stays close enough to count "
+        "as converged. Don't read convergence as agreement.",
+        "- **`user_paraphrase` and `user_other_task` can't happen in the product.** They edit the "
+        "first message through the engine, and the API has since been changed to refuse that, "
+        "because a tree's task is fixed. They're kept as a measure of the model's sensitivity.",
+        "- **These tasks use the fixed evaluation corpus** through `kb_search`. Real tasks search "
+        "pages they fetched themselves, so these results don't measure that path.",
+        "- **Times aren't a benchmark.** Other work ran on the same machine during the experiment.",
+    ]
+    lines += [
+        "",
         "## Runs",
         "",
         f"- **Main runs:** {len(mains)}. Turns median {statistics.median(turns):.0f}, range "
