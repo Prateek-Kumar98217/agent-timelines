@@ -65,6 +65,57 @@ export function stepTitle(node: TimelineNode): string {
   }
 }
 
+export interface BlockInfo {
+  /** The tag's name, and the class suffix that colours it. */
+  tag: string;
+  kind: "task" | "you" | "model" | "call" | "result" | "answer";
+  /** A short bold line, such as the tool's name. */
+  heading: string | null;
+  /** The text shown on the block, which the block clamps to fit. */
+  summary: string;
+}
+
+const argumentsText = (call: ToolCall | null): string =>
+  Object.values(call?.arguments ?? {})
+    .map((value) => (typeof value === "string" ? value : JSON.stringify(value)))
+    .join(", ");
+
+/** What a step's block shows without being opened. */
+export function blockInfo(node: TimelineNode): BlockInfo {
+  switch (node.type) {
+    case "root":
+      return { tag: "Task", kind: "task", heading: null, summary: taskOf(node) };
+    case "user_msg":
+      return { tag: "You", kind: "you", heading: null, summary: textOf(node) ?? "" };
+    case "tool_call": {
+      const call = callOf(node);
+      return {
+        tag: "Tool call",
+        kind: "call",
+        heading: toolLabel(String(call?.name)),
+        summary: argumentsText(call),
+      };
+    }
+    case "tool_result":
+      return {
+        tag: "Tool result",
+        kind: "result",
+        heading: toolLabel(String(node.payload.name)),
+        summary: contentOf(node),
+      };
+    case "llm_output": {
+      const call = callOf(node);
+      if (!call) return { tag: "Answer", kind: "answer", heading: null, summary: textOf(node) ?? "" };
+      return {
+        tag: "Model",
+        kind: "model",
+        heading: `Decides on ${toolLabel(call.name)}`,
+        summary: textOf(node) ?? argumentsText(call),
+      };
+    }
+  }
+}
+
 const EDIT_LABELS: Record<TimelineNode["type"], string> = {
   root: "",
   user_msg: "your message",

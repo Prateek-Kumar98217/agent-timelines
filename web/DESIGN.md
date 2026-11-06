@@ -1,16 +1,16 @@
 # Design notes
 
-The product is tracks that split at junctions, so the interface borrows from a railway signal-box
-panel. A run is a straight line, an edit is a junction, and a status is a signal lamp.
+The screen is one black map of agent steps that falls from top to bottom. Runs go straight down and
+every fork steps to the right. Everything else slides in over it when asked for.
 
-- **Colour:** enamel `#D5E0DA`, card stock `#F3F6F1`, ink `#102A2E`, track `#2C5A63`, edit cobalt
-  `#1F45D1`. Lamps: green `#12804F`, amber `#B86E00`, red `#C4261D`, grey `#5F6E6C`. Cobalt only ever
-  means "someone edited this".
+- **Colour:** canvas `#000000`, blocks `#141414`, lines `#3A3A3A`, text `#F2EFEA`, orange `#FF7A00`.
+  Orange only ever means "you changed this" or "act here".
+- **Step types:** each has its own tag colour and name. Task off-white, You violet `#C4A7FF`, Model
+  blue `#62C6FF`, Tool call green `#3DDC97`, Tool result yellow `#F2D544`. Answers invert to a light
+  block, so outcomes stand out at any zoom.
 - **Type:** Overpass, from highway signage. Overpass Mono is only for real tool arguments and raw
   results, never for labels.
-- **Layout:** the map is the one bold element and everything around it stays quiet. Left aligned.
-- **Motion:** the home track draws once, and lamps pulse only on running branches. Both stop under
-  reduced motion.
+- **Motion:** a new step pops up, then its arrow draws from the previous step down to it. Steps that
+  arrive together play one after another. Sidebars slide. Lamps pulse only on running branches. All of
+  it stops under reduced motion.
 - **Words:** say "step" and "branch". The action is "Create branch" everywhere.
-- **Shape encodes step type**, so colour is never the only signal: circle for you and the model,
-  square for tools, filled for what acts, hollow for what comes back, a bar for a final answer.

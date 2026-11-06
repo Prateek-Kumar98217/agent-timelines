@@ -1,46 +1,73 @@
+function Step({
+  x = 20,
+  y,
+  tag,
+  color,
+  text,
+  answer = false,
+}: {
+  x?: number;
+  y: number;
+  tag: string;
+  color: string;
+  text: string;
+  answer?: boolean;
+}) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect
+        width="210"
+        height="64"
+        rx="4"
+        fill={answer ? "var(--text)" : "var(--surface)"}
+        stroke={answer ? "var(--text)" : "var(--line)"}
+        strokeWidth="1.5"
+      />
+      <rect x="10" y="9" width={tag.length * 7 + 16} height="20" rx="10" fill={color} />
+      <text x="18" y="24" fill={answer ? "var(--text)" : "#000"} fontWeight="700" fontSize="13">
+        {tag}
+      </text>
+      <text x="12" y="51" fill={answer ? "#000" : "var(--text)"} fontSize="14">
+        {text}
+      </text>
+    </g>
+  );
+}
+
 /** The product in one picture: a run, an edit, and the second outcome it produced. */
 export function HeroTrack() {
   return (
     <svg
       className="hero-track"
-      viewBox="0 0 1000 190"
+      viewBox="0 0 490 440"
       role="img"
-      aria-label="A run drawn as a track. Editing a tool result splits it into a second track with a different answer."
+      aria-label="A run drawn from top to bottom. Editing a tool result starts a second branch with a different answer."
     >
       <path
-        className="hero-line"
-        pathLength={1}
-        d="M 20 50 H 960"
+        d="M 125 74 V 104 M 125 168 V 198 M 125 262 V 356"
         fill="none"
-        stroke="var(--track)"
-        strokeWidth="5"
+        stroke="var(--text)"
+        strokeWidth="2"
       />
+      <path d="M 119 96 L 125 105 L 131 96 Z M 119 190 L 125 199 L 131 190 Z M 119 348 L 125 357 L 131 348 Z" fill="var(--text)" />
       <path
-        className="hero-line hero-fork"
+        className="hero-fork"
         pathLength={1}
-        d="M 400 50 C 470 50, 470 135, 540 135 H 960"
+        d="M 125 300 H 365 V 350"
         fill="none"
-        stroke="var(--edit)"
-        strokeWidth="5"
+        stroke="var(--orange)"
+        strokeWidth="2.5"
       />
-      <g fill="var(--track)">
-        <circle cx="20" cy="50" r="8" />
-        <circle cx="210" cy="50" r="8" />
-        <rect x="392" y="42" width="16" height="16" />
-        <circle cx="640" cy="50" r="8" />
-        <rect x="953" y="32" width="7" height="36" />
-      </g>
-      <text x="20" y="30">Your task</text>
-      <text x="210" y="30" textAnchor="middle">The model picks a tool</text>
-      <text x="400" y="30" textAnchor="middle">The tool answers</text>
-      <text x="940" y="30" textAnchor="end">Everest was climbed in 1953</text>
+      <Step y={10} tag="Task" color="var(--task)" text="When was Everest climbed?" />
+      <Step y={104} tag="Tool call" color="var(--call)" text="web search: Everest" />
+      <Step y={198} tag="Tool result" color="var(--result)" text="First climbed in 1953" />
+      <Step y={356} tag="Answer" color="#000" text="It was first climbed in 1953" answer />
       <g className="hero-late">
-        <rect x="532" y="127" width="16" height="16" fill="var(--edit)" />
-        <rect x="953" y="117" width="7" height="36" fill="var(--edit)" />
-        <text x="548" y="168" fill="var(--edit)" textAnchor="middle">
+        <path d="M 359 348 L 365 357 L 371 348 Z" fill="var(--orange)" />
+        <Step x={260} y={356} tag="Answer" color="#000" text="It was first climbed in 1921" answer />
+        <text x="375" y="288" fill="var(--orange)" textAnchor="middle" fontSize="14" fontWeight="700">
           You change the result
         </text>
-        <text x="940" y="115" textAnchor="end">Everest was climbed in 1921</text>
       </g>
     </svg>
   );

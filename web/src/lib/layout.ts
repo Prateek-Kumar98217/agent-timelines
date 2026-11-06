@@ -1,19 +1,23 @@
 import type { TimelineNode, Tree } from "./types";
 
-export const STEP_X = 76;
-export const LANE_Y = 64;
+export const BLOCK_WIDTH = 248;
+export const BLOCK_HEIGHT = 112;
+export const STEP_Y = 172;
+export const LANE_X = 288;
 
 export interface Stop {
   node: TimelineNode;
-  column: number;
+  /** Steps from the root, which sets the height on the page. */
+  depth: number;
+  /** Which vertical line it's on, counted from the left. */
   lane: number;
   isLeaf: boolean;
 }
 
 /**
- * Lay the tree out like a track diagram. Each column is a step from the root. A step sits on the
- * same lane as its first child, so a run reads as one straight line and every fork peels off below
- * it. Lanes are handed out depth first, so a fork never crosses another fork's line.
+ * Lay the tree out from top to bottom. A step sits on the same lane as its first child, so a run
+ * falls in one straight line and every fork steps to the right of it. Lanes are handed out depth
+ * first, so a fork never crosses another fork's line.
  */
 export function layoutTree(tree: Tree): Map<string, Stop> {
   const children = new Map<string, TimelineNode[]>();
@@ -39,24 +43,40 @@ export function layoutTree(tree: Tree): Map<string, Stop> {
   }
 
   let nextLane = 0;
-  const place = (node: TimelineNode, column: number): number => {
+  const place = (node: TimelineNode, depth: number): number => {
     const below = children.get(node.id) ?? [];
     let lane = -1;
     for (const child of below) {
-      const childLane = place(child, column + 1);
+      const childLane = place(child, depth + 1);
       if (lane === -1) lane = childLane;
     }
     if (lane === -1) lane = nextLane++;
-    stops.set(node.id, { node, column, lane, isLeaf: below.length === 0 });
+    stops.set(node.id, { node, depth, lane, isLeaf: below.length === 0 });
     return lane;
   };
   place(root, 0);
   return stops;
 }
 
-/** A level line, or a curve with level ends that leaves the source and joins the target's lane. */
-export function trackPath(sx: number, sy: number, tx: number, ty: number): string {
-  if (Math.abs(sy - ty) < 1) return `M ${sx} ${sy} L ${tx} ${ty}`;
-  const middle = (sx + tx) / 2;
-  return `M ${sx} ${sy} C ${middle} ${sy}, ${middle} ${ty}, ${tx} ${ty}`;
+const CORNER = 10;
+
+/** Straight down on one lane. Between lanes: down, across, then down, with rounded corners. */
+export function arrowPath(sx: number, sy: number, tx: number, ty: number): string {
+  if (Math.abs(sx - tx) < 1) return `M ${sx} ${sy} L ${tx} ${ty}`;
+  const middle = (sy + ty) / 2;
+  const corner = Math.min(CORNER, Math.abs(tx - sx) / 2, (ty - sy) / 2);
+  const side = tx > sx ? 1 : -1;
+  return [
+    `M ${sx} ${sy}`,
+    `L ${sx} ${middle - corner}`,
+    `Q ${sx} ${middle} ${sx + side * corner} ${middle}`,
+    `L ${tx - side * corner} ${middle}`,
+    `Q ${tx} ${middle} ${tx} ${middle + corner}`,
+    `L ${tx} ${ty}`,
+  ].join(" ");
+}
+
+/** The arrowhead, pointing down with its tip on the target. */
+export function arrowHead(tx: number, ty: number): string {
+  return `M ${tx - 6} ${ty - 9} L ${tx} ${ty} L ${tx + 6} ${ty - 9} Z`;
 }

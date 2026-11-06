@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutTree, trackPath } from "./layout";
+import { arrowHead, arrowPath, layoutTree } from "./layout";
 import type { TimelineNode, Tree } from "./types";
 
 function node(id: string, parent: string | null, branch: string, seq: number): TimelineNode {
@@ -29,7 +29,7 @@ describe("layoutTree", () => {
   it("keeps a single run on one lane", () => {
     const stops = layoutTree(tree([node("r", null, "m", 0), node("a", "r", "m", 1), node("b", "a", "m", 2)]));
     expect([...stops.values()].map((stop) => stop.lane)).toEqual([0, 0, 0]);
-    expect(stops.get("b")).toMatchObject({ column: 2, isLeaf: true });
+    expect(stops.get("b")).toMatchObject({ depth: 2, isLeaf: true });
   });
 
   it("keeps the source branch straight when a fork was created first in time order", () => {
@@ -62,9 +62,19 @@ describe("layoutTree", () => {
   });
 });
 
-describe("trackPath", () => {
-  it("draws a straight line on one lane and a curve between lanes", () => {
-    expect(trackPath(0, 10, 50, 10)).toBe("M 0 10 L 50 10");
-    expect(trackPath(0, 10, 50, 90)).toContain("C 25 10, 25 90, 50 90");
+describe("arrowPath", () => {
+  it("goes straight down on one lane", () => {
+    expect(arrowPath(10, 0, 10, 60)).toBe("M 10 0 L 10 60");
+  });
+
+  it("goes down, across, then down between lanes", () => {
+    const path = arrowPath(0, 0, 300, 60);
+    expect(path.startsWith("M 0 0")).toBe(true);
+    expect(path).toContain("L 290 30");
+    expect(path.endsWith("L 300 60")).toBe(true);
+  });
+
+  it("puts the arrowhead's tip on the target", () => {
+    expect(arrowHead(50, 100)).toContain("L 50 100");
   });
 });

@@ -1,23 +1,29 @@
 :root {
-  --enamel: #d5e0da;
-  --enamel-deep: #c3d2cb;
-  --card: #f3f6f1;
-  --ink: #102a2e;
-  --ink-soft: #3f5a5e;
-  --track: #2c5a63;
-  --track-dim: #9db3ad;
-  --edit: #1f45d1;
-  --edit-wash: #dfe5fb;
-  --lamp-green: #12804f;
-  --lamp-amber: #b86e00;
-  --lamp-red: #c4261d;
-  --lamp-grey: #5f6e6c;
-  --mark-a: #f6d7d3;
-  --mark-b: #cfe9d9;
+  color-scheme: dark;
+  --black: #000000;
+  --surface: #141414;
+  --surface-raised: #1f1f1f;
+  --line: #3a3a3a;
+  --text: #f2efea;
+  --text-soft: #b0aba3;
+  --orange: #ff7a00;
+  --orange-deep: #e06a00;
+  --orange-wash: #2e1a06;
+  --task: #f2efea;
+  --you: #c4a7ff;
+  --model: #62c6ff;
+  --call: #3ddc97;
+  --result: #f2d544;
+  --lamp-green: #3ddc97;
+  --lamp-amber: #ffb020;
+  --lamp-red: #ff5a5a;
+  --lamp-grey: #807b74;
+  --mark-a: #5c1f1f;
+  --mark-b: #17492f;
   --text-sm: 0.8125rem;
   --text-base: 1rem;
   --text-lg: 1.25rem;
-  --text-xl: 1.625rem;
+  --text-xl: 1.75rem;
 }
 
 * {
@@ -31,8 +37,8 @@ body {
 }
 
 body {
-  background: var(--enamel);
-  color: var(--ink);
+  background: var(--black);
+  color: var(--text);
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: var(--text-base);
   line-height: 1.45;
@@ -57,8 +63,13 @@ textarea {
   color: inherit;
 }
 
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--orange);
+}
+
 :focus-visible {
-  outline: 3px solid var(--edit);
+  outline: 3px solid var(--orange);
   outline-offset: 2px;
 }
 
@@ -73,7 +84,7 @@ textarea {
 }
 
 .quiet {
-  color: var(--ink-soft);
+  color: var(--text-soft);
 }
 
 .small {
@@ -83,49 +94,50 @@ textarea {
 /* Controls */
 .button {
   display: inline-block;
+  flex: none;
   padding: 0.5rem 0.9rem 0.4rem;
-  border: 2px solid var(--ink);
-  border-radius: 3px;
-  background: transparent;
+  border: 1.5px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
 }
 
 .button:hover:not(:disabled) {
-  background: var(--enamel-deep);
+  border-color: var(--text);
 }
 
 .button:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .button-primary {
-  background: var(--ink);
-  color: var(--card);
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--black);
 }
 
 .button-primary:hover:not(:disabled) {
-  background: var(--track);
-}
-
-.button-edit {
-  background: var(--edit);
-  border-color: var(--edit);
-  color: #fff;
-}
-
-.button-edit:hover:not(:disabled) {
-  background: #1636ab;
+  background: var(--orange-deep);
+  border-color: var(--orange-deep);
 }
 
 .field {
   width: 100%;
   padding: 0.55rem 0.65rem;
-  border: 2px solid var(--track);
-  border-radius: 3px;
-  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 4px;
+  background: var(--black);
+}
+
+.field:focus {
+  border-color: var(--orange);
+}
+
+.field::placeholder {
+  color: #8b867e;
 }
 
 textarea.field {
@@ -142,10 +154,24 @@ textarea.field {
 .error {
   padding: 0.5rem 0.65rem;
   border-left: 4px solid var(--lamp-red);
-  background: #fbe9e7;
+  background: #2b1212;
 }
 
-/* Signal lamps */
+.notice {
+  padding: 0.5rem 0.65rem;
+  border-left: 4px solid var(--orange);
+  background: var(--orange-wash);
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Status lamps */
 .lamp {
   display: inline-block;
   flex: none;
@@ -153,18 +179,16 @@ textarea.field {
   height: 0.75rem;
   border-radius: 50%;
   background: var(--lamp-grey);
-  box-shadow: inset 0 0 0 2px rgb(16 42 46 / 0.25);
-}
-
-.lamp-running {
-  background: var(--lamp-amber);
-  animation: lamp-pulse 1.4s ease-in-out infinite;
 }
 
 .lamp-queued,
 .lamp-waiting {
   background: transparent;
   box-shadow: inset 0 0 0 3px var(--lamp-amber);
+}
+
+.lamp-running {
+  background: var(--lamp-amber);
 }
 
 .lamp-completed {
@@ -180,15 +204,9 @@ textarea.field {
   background: linear-gradient(90deg, var(--lamp-red) 50%, var(--lamp-amber) 50%);
 }
 
-@keyframes lamp-pulse {
-  50% {
-    opacity: 0.35;
-  }
-}
-
 /* Home */
 .home {
-  max-width: 68rem;
+  max-width: 76rem;
   margin: 0 auto;
   padding: 0 1rem 4rem;
 }
@@ -201,65 +219,44 @@ textarea.field {
 }
 
 .wordmark {
+  flex: none;
+  color: var(--orange);
   font-size: var(--text-lg);
   font-weight: 800;
   text-decoration: none;
+}
+
+.home-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 30rem);
+  gap: 2.5rem;
+  align-items: start;
 }
 
 .hero-track {
   display: block;
   width: 100%;
   height: auto;
-  margin-bottom: 1.5rem;
 }
 
 .hero-track text {
   font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 15px;
-  fill: var(--ink);
-}
-
-.hero-line {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: draw 1.6s ease-out forwards;
-}
-
-.hero-fork {
-  animation-delay: 0.7s;
-  animation-duration: 1.1s;
-}
-
-.hero-late {
-  opacity: 0;
-  animation: appear 0.3s linear 1.5s forwards;
-}
-
-@keyframes draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes appear {
-  to {
-    opacity: 1;
-  }
 }
 
 .composer {
   display: grid;
   gap: 0.75rem;
-  padding: 1.25rem;
-  background: var(--card);
-  border: 2px solid var(--ink);
-  border-radius: 3px;
 }
 
 .composer-title {
   font-size: var(--text-xl);
   font-weight: 800;
   line-height: 1.15;
+}
+
+.composer textarea.field {
+  min-height: 11rem;
+  background: var(--surface);
 }
 
 .composer-row {
@@ -299,7 +296,7 @@ textarea.field {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 2px solid var(--ink);
+  border-top: 2px solid var(--orange);
 }
 
 .tree-row {
@@ -307,7 +304,7 @@ textarea.field {
   grid-template-columns: 1fr auto;
   gap: 1.5rem;
   padding: 0.7rem 0 0.55rem;
-  border-bottom: 1px solid var(--track-dim);
+  border-bottom: 1px solid var(--line);
   text-decoration: none;
 }
 
@@ -329,22 +326,30 @@ textarea.field {
   white-space: nowrap;
 }
 
-/* Workspace */
+/* Workspace: the map fills the screen and everything else slides over it. */
 .workspace {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-columns: minmax(0, 1fr) 27rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   height: 100dvh;
 }
 
+/* Clip, not hidden: focusing a button in a sliding sidebar must not be able to scroll the page. */
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+}
+
 .topbar {
-  grid-column: 1 / -1;
+  z-index: 20;
   display: flex;
   gap: 1rem;
   align-items: center;
-  padding: 0.6rem 1rem 0.5rem;
-  background: var(--card);
-  border-bottom: 2px solid var(--ink);
+  padding: 0.55rem 1rem 0.45rem;
+  background: var(--black);
+  border-bottom: 1px solid var(--line);
 }
 
 .topbar-task {
@@ -354,6 +359,7 @@ textarea.field {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  font-size: inherit;
   font-weight: 700;
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -364,159 +370,235 @@ textarea.field {
 }
 
 .map {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--enamel);
-}
-
-.map-canvas {
-  flex: 1;
-  min-height: 0;
+  height: 100%;
+  background: var(--black);
 }
 
 .map .react-flow__attribution {
   background: transparent;
 }
 
+.map .react-flow__attribution a {
+  color: var(--text-soft);
+}
+
 .map .react-flow__controls-button {
-  background: var(--card);
-  border-bottom-color: var(--track-dim);
-  fill: var(--ink);
-}
-
-.legend {
-  display: flex;
-  padding: 0.45rem 0.75rem 0.3rem;
-  flex-wrap: wrap;
-  gap: 0.2rem 0.9rem;
-  font-size: var(--text-sm);
-}
-
-.legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.legend svg {
-  width: 14px;
-  height: 14px;
-}
-
-/* A stop on the track */
-.stop {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
+  width: 30px;
+  height: 30px;
+  background: var(--surface-raised);
   border: 0;
-  background: transparent;
+  border-bottom: 1px solid var(--line);
+  fill: var(--text);
+  color: var(--text);
+}
+
+.map .react-flow__controls-button svg {
+  fill: var(--text);
+}
+
+.map .react-flow__minimap {
+  border: 1px solid var(--line);
+}
+
+/* Step blocks. Each type sets one colour, which its tag and edge take. */
+.block {
+  --kind: var(--line);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 0.5rem 0.65rem 0.45rem;
+  border: 1.5px solid var(--line);
+  border-left: 5px solid var(--kind);
+  border-radius: 4px;
+  background: var(--surface);
+  text-align: left;
+  font-size: var(--text-sm);
+  line-height: 1.25;
   cursor: pointer;
 }
 
-.stop svg {
-  display: block;
-  overflow: visible;
+.block:hover {
+  border-top-color: var(--text-soft);
+  border-right-color: var(--text-soft);
+  border-bottom-color: var(--text-soft);
 }
 
-.stop-glyph {
-  fill: var(--track);
-  stroke: var(--track);
-  stroke-width: 3;
+.block-task {
+  --kind: var(--task);
 }
 
-.stop-glyph-hollow {
-  fill: var(--enamel);
+.block-you {
+  --kind: var(--you);
 }
 
-.stop-dim .stop-glyph {
-  fill: var(--track-dim);
-  stroke: var(--track-dim);
+.block-model {
+  --kind: var(--model);
 }
 
-.stop-dim .stop-glyph-hollow {
-  fill: var(--enamel);
+.block-call {
+  --kind: var(--call);
 }
 
-.stop-edited .stop-glyph {
-  fill: var(--edit);
-  stroke: var(--edit);
+.block-result {
+  --kind: var(--result);
 }
 
-.stop-edited .stop-glyph-hollow {
-  fill: var(--edit-wash);
+/* Answers invert, so outcomes stand out at any zoom. */
+.block-answer {
+  --kind: var(--orange);
+  background: var(--text);
+  border-color: var(--text);
+  border-left-color: var(--text);
+  color: var(--black);
 }
 
-.stop:hover .stop-ring,
-.stop-selected .stop-ring {
-  display: block;
+.block-answer .tag {
+  background: var(--black);
+  color: var(--text);
 }
 
-.stop-ring {
-  display: none;
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 2;
+.block-answer .block-turn,
+.block-answer .block-tokens {
+  color: #4a4640;
 }
 
-.stop-label {
-  position: absolute;
-  top: 34px;
-  left: 50%;
-  transform: translateX(-50%);
+.block-edited {
+  border-color: var(--orange);
+  border-left-color: var(--kind);
+  box-shadow: 0 0 0 1px var(--orange);
+}
+
+.block-answer.block-edited {
+  border-left-color: var(--orange);
+}
+
+.block-selected {
+  outline: 3px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.block-dim {
+  opacity: 0.5;
+}
+
+.block-dim:hover,
+.block-dim:focus-visible {
+  opacity: 1;
+}
+
+.block-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.tag {
+  flex: none;
+  padding: 0.1rem 0.45rem 0;
+  border-radius: 999px;
+  background: var(--kind);
+  color: var(--black);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.block .tag-edited {
+  background: var(--orange);
+  color: var(--black);
+}
+
+.block .tag-error {
+  background: var(--lamp-red);
+  color: var(--black);
+}
+
+.block-turn {
+  margin-left: auto;
+  color: var(--text-soft);
+  font-size: 0.75rem;
   white-space: nowrap;
-  font-size: 11px;
-  line-height: 1.15;
-  color: var(--ink);
-  pointer-events: none;
 }
 
-.stop-dim .stop-label {
-  color: var(--ink-soft);
+.block-heading {
+  flex: none;
+  overflow: hidden;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-/* Tracks run through the middle of each stop, so both handles sit at its centre. */
+.block-summary {
+  display: -webkit-box;
+  min-height: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
+}
+
+.block-summary-short {
+  -webkit-line-clamp: 2;
+}
+
+.block-tokens {
+  margin-top: auto;
+  color: var(--text-soft);
+  font-size: 0.75rem;
+}
+
 .map .flow-handle {
   visibility: hidden;
-  top: 50%;
-  left: 50%;
-  right: auto;
   width: 1px;
   height: 1px;
   min-width: 0;
   min-height: 0;
   border: 0;
-  transform: none;
 }
 
-.map .track-line {
+/* Arrows */
+.arrow-line {
   fill: none;
-  stroke: var(--track);
-  stroke-width: 4;
+  stroke: var(--line);
+  stroke-width: 2;
 }
 
-.map .track-line-dim {
-  stroke: var(--track-dim);
-  stroke-width: 3;
+.arrow-head {
+  fill: var(--line);
 }
 
-.map .track-line-edit {
-  stroke: var(--edit);
+.arrow-path .arrow-line {
+  stroke: var(--text);
 }
 
+.arrow-path .arrow-head {
+  fill: var(--text);
+}
+
+.arrow-edit .arrow-line {
+  stroke: var(--orange);
+  stroke-width: 2.5;
+}
+
+.arrow-edit .arrow-head {
+  fill: var(--orange);
+}
+
+/* The end of each branch */
 .terminus {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  width: 240px;
-  height: 34px;
-  padding: 0 0.4rem;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
+  gap: 0.5rem;
+  width: 100%;
+  height: 100%;
+  padding: 0 0.6rem;
+  border: 1.5px dashed var(--line);
+  border-radius: 4px;
+  background: var(--black);
   text-align: left;
   font-size: var(--text-sm);
   line-height: 1.15;
@@ -524,38 +606,86 @@ textarea.field {
 }
 
 .terminus:hover {
-  background: var(--enamel-deep);
+  border-color: var(--text-soft);
 }
 
 .terminus-selected {
-  background: var(--card);
-  box-shadow: inset 0 0 0 2px var(--ink);
+  border: 1.5px solid var(--orange);
 }
 
-.terminus b {
+.terminus-text {
+  min-width: 0;
+}
+
+.terminus-text b {
   display: block;
 }
 
-.terminus span span {
+.terminus-text span {
   display: block;
-  color: var(--ink-soft);
-  white-space: nowrap;
   overflow: hidden;
+  color: var(--text-soft);
+  white-space: nowrap;
   text-overflow: ellipsis;
-  max-width: 13rem;
 }
 
-/* Inspector */
-.inspector {
-  grid-row: 2 / 4;
-  grid-column: 2;
+/* React Flow turns pointer events off on nodes it can't select. These buttons do their own work. */
+.map .block,
+.map .terminus {
+  pointer-events: all;
+}
+
+/* Sliding sidebars */
+.sidebar {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  bottom: 0;
+  width: min(27rem, 100%);
   overflow-y: auto;
   padding: 1rem;
-  background: var(--card);
-  border-left: 2px solid var(--ink);
+  background: var(--surface);
+  visibility: hidden;
+  transition:
+    transform 240ms ease-out,
+    visibility 240ms;
 }
 
-.inspector h2 {
+.sidebar-left {
+  left: 0;
+  width: min(24rem, 100%);
+  border-right: 2px solid var(--orange);
+  transform: translateX(-100%);
+}
+
+.sidebar-right {
+  right: 0;
+  border-left: 2px solid var(--orange);
+  transform: translateX(100%);
+}
+
+.sidebar-wide {
+  right: 0;
+  z-index: 40;
+  width: min(68rem, 100%);
+  border-left: 2px solid var(--orange);
+  transform: translateX(100%);
+}
+
+.sidebar-open {
+  transform: none;
+  visibility: visible;
+}
+
+.sidebar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.sidebar-head h2 {
   font-size: var(--text-lg);
   font-weight: 800;
   line-height: 1.2;
@@ -573,12 +703,12 @@ textarea.field {
   margin: 0.75rem 0;
   overflow-y: auto;
   padding: 0.6rem 0.7rem;
-  background: #fff;
-  border-left: 3px solid var(--track);
+  background: var(--black);
+  border-left: 3px solid var(--line);
 }
 
 .inspector-body-edited {
-  border-left-color: var(--edit);
+  border-left-color: var(--orange);
 }
 
 .edit-form {
@@ -586,13 +716,24 @@ textarea.field {
   gap: 0.6rem;
   margin-top: 1rem;
   padding-top: 0.9rem;
-  border-top: 2px solid var(--edit);
+  border-top: 2px solid var(--orange);
 }
 
 .edit-form h3 {
   font-size: var(--text-base);
   font-weight: 800;
-  color: var(--edit);
+  color: var(--orange);
+}
+
+.button-edit {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--black);
+}
+
+.button-edit:hover:not(:disabled) {
+  background: var(--orange-deep);
+  border-color: var(--orange-deep);
 }
 
 .choice {
@@ -607,51 +748,40 @@ textarea.field {
   align-items: center;
 }
 
-.notice {
-  padding: 0.5rem 0.65rem;
-  border-left: 4px solid var(--edit);
-  background: var(--edit-wash);
+/* Branch list */
+.compare-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
 }
 
-/* Branch table */
-.branches {
-  grid-column: 1;
-  max-height: 26dvh;
-  overflow: auto;
-  background: var(--card);
-  border-top: 2px solid var(--ink);
+.branch-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
 }
 
-.branches table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
+.branch-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.55rem 0.35rem 0.45rem;
+  border-bottom: 1px solid var(--line);
 }
 
-.branches th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 0.4rem 0.6rem 0.3rem;
-  background: var(--enamel-deep);
-  text-align: left;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.branches td {
-  padding: 0.3rem 0.6rem 0.2rem;
-  border-top: 1px solid var(--enamel-deep);
-  white-space: nowrap;
-}
-
-.branches .numeric {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+.branch-row input {
+  margin-top: 0.2rem;
 }
 
 .branch-row-selected {
-  background: var(--enamel);
+  background: var(--orange-wash);
+}
+
+.branch-row-main {
+  min-width: 0;
 }
 
 .branch-name {
@@ -669,39 +799,14 @@ textarea.field {
   text-decoration: underline;
 }
 
-.branches-foot {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.45rem 0.6rem;
-}
-
-.link-button {
-  padding: 0;
-  border: 0;
-  background: none;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
 /* Compare */
-.compare {
-  grid-column: 1 / -1;
-  grid-row: 2 / 4;
-  overflow-y: auto;
-  padding: 1.25rem 1rem 3rem;
-  background: var(--card);
-}
-
 .compare-inner {
   max-width: 76rem;
   margin: 0 auto;
 }
 
-.compare h2 {
-  margin-bottom: 0.75rem;
+.compare-inner .sidebar-head h2 {
   font-size: var(--text-xl);
-  font-weight: 800;
   line-height: 1.15;
 }
 
@@ -727,8 +832,8 @@ textarea.field {
 .compare-answer {
   margin: 0.4rem 0 0;
   padding: 0.65rem 0.75rem;
-  background: #fff;
-  border-left: 3px solid var(--track);
+  background: var(--black);
+  border-left: 3px solid var(--line);
 }
 
 .diff-a {
@@ -758,14 +863,14 @@ textarea.field {
 .compare-table th,
 .compare-table td {
   padding: 0.4rem 0.6rem 0.3rem;
-  border-bottom: 1px solid var(--track-dim);
+  border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
   overflow-wrap: anywhere;
 }
 
 .compare-table thead th {
-  border-bottom: 2px solid var(--ink);
+  border-bottom: 2px solid var(--orange);
 }
 
 .keys {
@@ -783,7 +888,7 @@ textarea.field {
   display: grid;
   gap: 0.5rem;
   padding: 1rem 0;
-  border-bottom: 1px solid var(--track-dim);
+  border-bottom: 1px solid var(--line);
 }
 
 .key-form {
@@ -808,27 +913,12 @@ textarea.field {
 }
 
 @media (max-width: 62rem) {
-  .workspace {
-    display: flex;
-    flex-direction: column;
-    height: auto;
-    min-height: 100dvh;
+  .home-top {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .map {
-    flex: none;
-    height: 60dvh;
-  }
-
-  .branches {
-    max-height: none;
-    border-top: 2px solid var(--ink);
-  }
-
-  .inspector {
-    border-left: 0;
-    border-top: 2px solid var(--ink);
-    overflow: visible;
+  .hero-track {
+    display: none;
   }
 
   .compare-sides {
@@ -845,12 +935,7 @@ textarea.field {
   }
 }
 
-/* At this width the diagram's labels would be too small to read, and its alt text says the same. */
 @media (max-width: 40rem) {
-  .hero-track text {
-    display: none;
-  }
-
   .topbar {
     flex-wrap: wrap;
     justify-content: space-between;
@@ -860,26 +945,72 @@ textarea.field {
     flex-basis: 100%;
     order: 3;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .hero-line,
-  .hero-late,
-  .lamp-running {
-    animation: none;
+  .topbar .connection {
+    flex-basis: 100%;
+    order: 4;
   }
 
-  .hero-line {
-    stroke-dashoffset: 0;
+  .map .react-flow__minimap {
+    display: none;
+  }
+}
+
+/* Motion only plays when it's welcome, so the resting styles above are always complete. */
+@media (prefers-reduced-motion: no-preference) {
+  .lamp-running {
+    animation: lamp-pulse 1.4s ease-in-out infinite;
+  }
+
+  /* A new step pops up first. */
+  .block-arriving {
+    animation: block-pop 320ms cubic-bezier(0.2, 1.5, 0.4, 1) var(--entrance-delay, 0ms) backwards;
+  }
+
+  /* Its arrow then draws from the step before, and the head lands last. */
+  .arrow-arriving .arrow-line {
+    stroke-dasharray: 1;
+    animation: arrow-draw 380ms ease-in calc(var(--entrance-delay, 0ms) + 320ms) backwards;
+  }
+
+  .arrow-arriving .arrow-head {
+    animation: arrow-head-in 90ms linear calc(var(--entrance-delay, 0ms) + 680ms) backwards;
+  }
+
+  .hero-fork {
+    stroke-dasharray: 1;
+    animation: arrow-draw 900ms ease-out 400ms backwards;
   }
 
   .hero-late {
-    opacity: 1;
+    animation: arrow-head-in 300ms linear 1200ms backwards;
   }
 }
 
-/* React Flow turns pointer events off on nodes it can't select. These buttons do their own work. */
-.map .stop,
-.map .terminus {
-  pointer-events: all;
+@keyframes lamp-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes block-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+}
+
+@keyframes arrow-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes arrow-head-in {
+  from {
+    opacity: 0;
+  }
 }

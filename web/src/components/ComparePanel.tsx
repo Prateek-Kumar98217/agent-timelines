@@ -86,14 +86,14 @@ export function ComparePanel({ a, b, onClose }: Props) {
   return (
     <section className="compare" aria-label="Compare branches">
       <div className="compare-inner">
-        <p style={{ marginBottom: "1rem" }}>
+        <div className="sidebar-head">
+          <h2>
+            {a.name} and {b.name}
+          </h2>
           <button className="button" type="button" onClick={onClose}>
-            Back to the map
+            Close comparison
           </button>
-        </p>
-        <h2>
-          {a.name} and {b.name}
-        </h2>
+        </div>
         {error && <p className="error" role="alert">{error}</p>}
         {!comparison && !error && <p className="quiet">Comparing the answers.</p>}
         {comparison && (

@@ -12,8 +12,10 @@ export default function HomePage() {
         </Link>
         <Link href="/keys">API keys</Link>
       </nav>
-      <HeroTrack />
-      <Composer />
+      <div className="home-top">
+        <Composer />
+        <HeroTrack />
+      </div>
       <TreeList />
     </main>
   );

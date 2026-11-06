@@ -2,21 +2,23 @@
 
 import { ReactFlowProvider } from "@xyflow/react";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { ACTIVE_STATUSES, type BranchInfo, describeBranches, pathTo, taskOfTree, toolsOf } from "@/lib/nodes";
 import { useTree } from "@/lib/useTree";
-import { BranchTable } from "./BranchTable";
+import { BranchPanel } from "./BranchPanel";
 import { ComparePanel } from "./ComparePanel";
 import { Inspector } from "./Inspector";
 import { TrackMap } from "./TrackMap";
 
 export function Workspace({ id }: { id: string }) {
-  const { tree, error, connection, refresh } = useTree(id);
+  const { tree, arrivals, error, connection, refresh } = useTree(id);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [comparing, setComparing] = useState<string[]>([]);
   const [showCompare, setShowCompare] = useState(false);
+  const [showBranches, setShowBranches] = useState(false);
+  const [showStep, setShowStep] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const branches = useMemo(() => (tree ? describeBranches(tree) : []), [tree]);
@@ -41,12 +43,16 @@ export function Workspace({ id }: { id: string }) {
   const selectBranch = useCallback((nextId: string) => {
     setSelectedBranchId(nextId);
     setSelectedNodeId(null);
+    setShowStep(true);
   }, []);
+
+  const clearSelection = useCallback(() => setShowStep(false), []);
 
   // A step on a dimmed line belongs to another branch, so picking it switches branch too.
   const selectNode = useCallback(
     (nextId: string) => {
       setSelectedNodeId(nextId);
+      setShowStep(true);
       if (!tree) return;
       const passesThrough = (entry: BranchInfo) =>
         entry.lastNode !== null && pathTo(tree, entry.lastNode.id).some((step) => step.id === nextId);
@@ -66,6 +72,17 @@ export function Workspace({ id }: { id: string }) {
     },
     [refresh, selectBranch],
   );
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setShowCompare(false);
+      setShowStep(false);
+      setShowBranches(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   if (error && !tree) {
     return (
@@ -102,56 +119,77 @@ export function Workspace({ id }: { id: string }) {
                 ? "1 branch running"
                 : `${running} branches running`}
         </span>
+        <button
+          className="button"
+          type="button"
+          aria-expanded={showBranches}
+          onClick={() => setShowBranches(!showBranches)}
+        >
+          Branches ({branches.length})
+        </button>
       </header>
-      {showCompare && compareA && compareB ? (
-        <ComparePanel a={compareA} b={compareB} onClose={() => setShowCompare(false)} />
-      ) : (
-        <>
-          <ReactFlowProvider>
-            <TrackMap
-              tree={tree}
-              branches={branches}
-              selectedNodeId={selectedNodeId}
-              selectedBranchId={branchId}
-              highlighted={highlighted}
-              onSelectNode={selectNode}
-              onSelectBranch={selectBranch}
-            />
-          </ReactFlowProvider>
-          <Inspector
-            node={node}
-            branch={info}
-            path={path}
-            tools={tools}
-            onSelect={selectNode}
-            onForked={forked}
-          />
-          <div style={{ display: "contents" }}>
-            <BranchTable
-              branches={branches}
-              selectedBranchId={branchId}
-              comparing={comparing}
-              onSelect={selectBranch}
-              onToggleCompare={(toggled) =>
-                setComparing((current) =>
-                  current.includes(toggled)
-                    ? current.filter((entry) => entry !== toggled)
-                    : [...current, toggled],
-                )
-              }
-              error={actionError}
-              onCompare={() => setShowCompare(true)}
-              onCancel={(cancelled) => {
-                setActionError(null);
-                api
-                  .cancel(cancelled)
-                  .then(() => refresh())
-                  .catch((caught: Error) => setActionError(caught.message));
-              }}
-            />
-          </div>
-        </>
-      )}
+      <div className="stage">
+      <ReactFlowProvider>
+        <TrackMap
+          tree={tree}
+          branches={branches}
+          arrivals={arrivals}
+          selectedNodeId={node?.id ?? null}
+          selectedBranchId={branchId}
+          highlighted={highlighted}
+          onSelectNode={selectNode}
+          onSelectBranch={selectBranch}
+          onClearSelection={clearSelection}
+          panelOpen={showStep && node !== null}
+        />
+      </ReactFlowProvider>
+      <BranchPanel
+        open={showBranches}
+        branches={branches}
+        selectedBranchId={branchId}
+        comparing={comparing}
+        error={actionError}
+        onClose={() => setShowBranches(false)}
+        onSelect={selectBranch}
+        onToggleCompare={(toggled) =>
+          setComparing((current) =>
+            current.includes(toggled)
+              ? current.filter((entry) => entry !== toggled)
+              : [...current, toggled],
+          )
+        }
+        onCompare={() => {
+          setShowBranches(false);
+          setShowCompare(true);
+        }}
+        onCancel={(cancelled) => {
+          setActionError(null);
+          api
+            .cancel(cancelled)
+            .then(() => refresh())
+            .catch((caught: Error) => setActionError(caught.message));
+        }}
+      />
+      <Inspector
+        open={showStep}
+        node={node}
+        branch={info}
+        path={path}
+        tools={tools}
+        onClose={() => setShowStep(false)}
+        onSelect={selectNode}
+        onForked={forked}
+      />
+      <aside
+        className={`sidebar sidebar-wide ${showCompare && compareA && compareB ? "sidebar-open" : ""}`}
+        aria-label="Comparison"
+        inert={!(showCompare && compareA && compareB)}
+      >
+        {showCompare && compareA && compareB && (
+          <ComparePanel a={compareA} b={compareB} onClose={() => setShowCompare(false)} />
+        )}
+      </aside>
+      </div>
     </main>
   );
 }

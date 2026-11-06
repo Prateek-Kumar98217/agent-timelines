@@ -305,75 +305,86 @@ function EditForm({
 }
 
 interface Props {
+  open: boolean;
   node: TimelineNode | null;
   branch: BranchInfo | null;
   path: TimelineNode[];
   tools: ToolSpec[];
+  onClose: () => void;
   onSelect: (id: string) => void;
   onForked: (branchId: string) => void;
 }
 
-export function Inspector({ node, branch, path, tools, onSelect, onForked }: Props) {
-  if (!node) {
-    return (
-      <aside className="inspector">
-        <h2>Pick a step on the map</h2>
-        <p className="quiet" style={{ marginTop: "0.5rem" }}>
-          You can read what happened at that step, then edit it to start a new branch.
-        </p>
-      </aside>
-    );
-  }
-
-  const position = path.findIndex((step) => step.id === node.id);
+export function Inspector({ open, node, branch, path, tools, onClose, onSelect, onForked }: Props) {
+  const position = node ? path.findIndex((step) => step.id === node.id) : -1;
   const previous = position > 0 ? path[position - 1] : undefined;
   const next = position >= 0 ? path[position + 1] : undefined;
-  const tokens = node.input_tokens + node.output_tokens;
+  const tokens = node ? node.input_tokens + node.output_tokens : 0;
 
   return (
-    <aside className="inspector" aria-label="Selected step">
-      <nav className="inspector-nav" aria-label="Steps on this path">
-        <button
-          className="button"
-          type="button"
-          disabled={!previous}
-          onClick={() => previous && onSelect(previous.id)}
-        >
-          Previous step
-        </button>
-        <button
-          className="button"
-          type="button"
-          disabled={!next}
-          onClick={() => next && onSelect(next.id)}
-        >
-          Next step
-        </button>
-      </nav>
-      <h2>{stepTitle(node)}</h2>
-      <p className="quiet small">
-        {node.type === "root" ? "Every branch starts here." : `${node.turn_index > 0 ? `Turn ${node.turn_index} on ` : "On "}${branch?.name ?? "this branch"}.`}
-        {tokens > 0 && ` Used ${node.input_tokens.toLocaleString()} tokens in, ${node.output_tokens.toLocaleString()} out.`}
-      </p>
-      <NodeBody node={node} />
-      {node.edited_from_id && (
-        <p className="notice small">
-          You edited this step.{" "}
-          <button className="link-button" type="button" onClick={() => onSelect(node.edited_from_id!)}>
-            Show the original step
-          </button>
-        </p>
-      )}
-      {branch && isFinalAnswer(node) && ACTIVE_STATUSES.has(branch.branch.status) && (
-        <p className="quiet small">This branch is still finishing.</p>
-      )}
-      {node.type === "root" ? (
-        <p className="notice small" style={{ marginTop: "1rem" }}>
-          The task can't be edited. To try a different one, edit your first message, which is the
-          next step.
-        </p>
-      ) : (
-        <EditForm key={node.id} node={node} tools={tools} onForked={onForked} />
+    <aside
+      className={`sidebar sidebar-right ${open && node ? "sidebar-open" : ""}`}
+      aria-label="Selected step"
+      inert={!(open && node)}
+    >
+      {node && (
+        <>
+          <div className="sidebar-head">
+            <h2>{stepTitle(node)}</h2>
+            <button className="button" type="button" onClick={onClose}>
+              Close step
+            </button>
+          </div>
+          <nav className="inspector-nav" aria-label="Steps on this path">
+            <button
+              className="button"
+              type="button"
+              disabled={!previous}
+              onClick={() => previous && onSelect(previous.id)}
+            >
+              Previous step
+            </button>
+            <button
+              className="button"
+              type="button"
+              disabled={!next}
+              onClick={() => next && onSelect(next.id)}
+            >
+              Next step
+            </button>
+          </nav>
+          <p className="quiet small">
+            {node.type === "root"
+              ? "Every branch starts here."
+              : `${node.turn_index > 0 ? `Turn ${node.turn_index} on ` : "On "}${branch?.name ?? "this branch"}.`}
+            {tokens > 0 &&
+              ` Used ${node.input_tokens.toLocaleString()} tokens in, ${node.output_tokens.toLocaleString()} out.`}
+          </p>
+          <NodeBody node={node} />
+          {node.edited_from_id && (
+            <p className="notice small">
+              You edited this step.{" "}
+              <button
+                className="link-button"
+                type="button"
+                onClick={() => onSelect(node.edited_from_id!)}
+              >
+                Show the original step
+              </button>
+            </p>
+          )}
+          {branch && isFinalAnswer(node) && ACTIVE_STATUSES.has(branch.branch.status) && (
+            <p className="quiet small">This branch is still finishing.</p>
+          )}
+          {node.type === "root" ? (
+            <p className="notice small" style={{ marginTop: "1rem" }}>
+              The task can't be edited. To try a different one, edit your first message, which is the
+              next step.
+            </p>
+          ) : (
+            <EditForm key={node.id} node={node} tools={tools} onForked={onForked} />
+          )}
+        </>
       )}
     </aside>
   );
