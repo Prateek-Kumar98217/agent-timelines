@@ -10,6 +10,10 @@ from app.settings import Settings
 STEP_QUEUE = "steps"
 RUN_STEP_TASK = "agent_timelines.run_step"
 SWEEP_TASK = "agent_timelines.sweep"
+# How long a send waits for the broker to confirm it, and how long any one socket read or write can
+# take. Together they bound how long a request can block on a broker that has stopped answering.
+CONFIRM_TIMEOUT_SECONDS = 2
+SOCKET_TIMEOUT_SECONDS = 2
 
 
 def make_celery(settings: Settings) -> Celery:
@@ -30,6 +34,9 @@ def make_celery(settings: Settings) -> Celery:
         control_queue_exclusive=True,
         event_queue_exclusive=True,
         broker_connection_timeout=3,
+        # The outbox deletes its row after a send, so a send must mean the broker has the message.
+        # Without this, one written to a dying connection is lost with no error.
+        broker_transport_options={"confirm_publish": True},
         broker_connection_retry_on_startup=True,
         beat_schedule={
             "sweep": {
@@ -39,6 +46,21 @@ def make_celery(settings: Settings) -> Celery:
             }
         },
     )
+    return app
+
+
+def make_publisher(settings: Settings) -> Celery:
+    """A Celery app only for sending, with socket timeouts.
+
+    Closing a connection to a frozen broker otherwise waits forever for its reply. A consumer can't
+    have these timeouts, because it sits idle on its socket between messages.
+    """
+    app = make_celery(settings)
+    app.conf.broker_transport_options = {
+        **app.conf.broker_transport_options,
+        "read_timeout": SOCKET_TIMEOUT_SECONDS,
+        "write_timeout": SOCKET_TIMEOUT_SECONDS,
+    }
     return app
 
 
@@ -55,6 +77,7 @@ class CeleryStepQueue:
             kwargs={"trace_context": message.trace_context, "enqueued_at": message.enqueued_at},
             queue=self._queue,
             retry=False,
+            confirm_timeout=CONFIRM_TIMEOUT_SECONDS,
         )
 
     def depth(self) -> int:

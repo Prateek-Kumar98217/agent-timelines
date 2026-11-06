@@ -265,6 +265,21 @@ def check_broker_outage() -> None:
     print("ok   broker outage: nothing lost, branch completed after recovery")
 
 
+def check_broker_dies_during_a_send() -> None:
+    """A frozen broker accepts bytes and never answers, and its death loses what it was sent."""
+    warm_tree, warm_branch = create("Open the connection a later send would reuse")
+    assert wait_finished(warm_tree, [warm_branch], timeout=120)[warm_branch] == "completed"
+    compose("pause", "rabbitmq")
+    started = time.monotonic()
+    tree_id, branch = create("Survive the broker dying during a send")
+    assert time.monotonic() - started < 10, "the request blocked on a frozen broker"
+    compose("kill", "-s", "SIGKILL", "rabbitmq")
+    compose("start", "rabbitmq")
+    # Well under the 300 seconds a lost message would wait for its resend.
+    assert wait_finished(tree_id, [branch], timeout=120)[branch] == "completed"
+    print("ok   broker died during a send: the step wasn't lost")
+
+
 def main() -> None:
     assert client.get("/healthz").json() == {"status": "ok"}
     check_run_forks_and_stream()
@@ -274,6 +289,7 @@ def main() -> None:
     check_waiting_uses_no_compute()
     check_worker_killed_mid_step()
     check_broker_outage()
+    check_broker_dies_during_a_send()
     print("all smoke checks passed")
 
 

@@ -90,7 +90,7 @@ def build_adapters(settings: Settings, key_lookup: KeyLookup | None = None) -> A
 def _build_local(settings: Settings, key_lookup: KeyLookup) -> Adapters:
     import redis
 
-    from app.adapters.celery_queue import CeleryStepQueue, make_celery
+    from app.adapters.celery_queue import CeleryStepQueue, make_publisher
     from app.adapters.embeddings import FastEmbedEmbedder
     from app.adapters.llm import RoutedLLM
     from app.adapters.mcp_tools import McpToolExecutor
@@ -111,7 +111,7 @@ def _build_local(settings: Settings, key_lookup: KeyLookup) -> Adapters:
         else NoopTelemetry()
     )
     return Adapters(
-        queue=CeleryStepQueue(make_celery(settings)),
+        queue=CeleryStepQueue(make_publisher(settings)),
         llm=RoutedLLM(key_lookup, settings.ollama_url, mock),
         tools=McpToolExecutor(
             settings.gateway_url, settings.gateway_token_secret, telemetry=telemetry
