@@ -136,6 +136,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
+      # Loki refuses all writes once its disk is 90% full, and these images fill a runner's disk.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
       - name: Start the local stack
         run: docker compose up -d --build --wait --wait-timeout 300 api worker beat
         env:
@@ -158,6 +163,7 @@ jobs:
       - name: Show logs on failure
         if: failure()
         run: |
+          df -h /
           docker compose logs --tail 100 api worker beat gateway
           echo "--- observability: Loki and collector output"
           docker compose logs --no-log-prefix --tail 300 observability

@@ -25,7 +25,7 @@ tested, along with what closed it.
 | Similarity can't tell a changed fact from the same fact | Edits that contradict a source changed the facts in 62% of runs and were flagged as diverged in 7%, so compare marks the changed words too | Accepted |
 | The convergence threshold comes from one model on 8 tasks | It may not suit other models, so it's a setting | Accepted |
 | The judge scores only 6 fixed answers, by hand, never in CI or on a schedule | It checks the fact checks on a small sample, and the rest of task success is deterministic | Accepted |
-| The compose job's log check fails on GitHub: no logs reach Loki there, though it passes locally, including on 4 CPUs | CI stays red on that job. It now prints Loki's and the collector's output on failure, to find the cause | Next CI run |
+| Loki stops storing logs without warning once its disk is 90% full | Logs go missing while the rest of the stack looks healthy. This broke the log check on GitHub, so that job now frees disk space first. It also applies to any machine that's nearly full | Accepted |
 | External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
 | The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
 

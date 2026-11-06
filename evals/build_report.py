@@ -318,9 +318,9 @@ def tests_section(tests: dict[str, int]) -> str:
   <p>Run from <code>scripts/smoke_local.py</code> and <code>scripts/smoke_observability.py</code>,
   in containers, with a scripted model.</p>
   <ul>{checks}</ul>
-  <p class="finding"><strong>The log check fails on GitHub.</strong> These checks pass locally,
-  including on 4 CPUs with fresh data. On GitHub's runners, the same job finds no logs in Loki,
-  though traces and metrics arrive. The cause isn't known yet. The other CI jobs pass.</p>
+  <p class="finding"><strong>The log check failed on GitHub.</strong> Loki refuses all writes once
+  its disk is 90% full, and it reports this as "Ingester is shutting down". Forcing that limit
+  locally reproduced the same failure. The job now frees disk space before it builds.</p>
   <h3>Live checks with the real model</h3>
   <p>Run once by hand on the full stack, with <code>qwen3:4b</code>.</p>
   <div class="scroll"><table><tbody>{live}</tbody></table></div>
