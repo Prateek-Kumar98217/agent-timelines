@@ -133,9 +133,9 @@ export function ComparePanel({ a, b, onClose }: Props) {
                   <td>{comparison.b.turns_used}</td>
                 </tr>
                 <tr>
-                  <th scope="row">Tokens</th>
-                  <td>{(comparison.a.input_tokens + comparison.a.output_tokens).toLocaleString()}</td>
-                  <td>{(comparison.b.input_tokens + comparison.b.output_tokens).toLocaleString()}</td>
+                  <th scope="row">Tokens, whole path</th>
+                  <td>{comparison.a.path_tokens.toLocaleString()}</td>
+                  <td>{comparison.b.path_tokens.toLocaleString()}</td>
                 </tr>
                 <tr>
                   <th scope="row">Tools used</th>
@@ -152,7 +152,8 @@ export function ComparePanel({ a, b, onClose }: Props) {
               </tbody>
             </table>
             <p className="quiet small" style={{ marginTop: "0.75rem" }}>
-              They share {comparison.shared_nodes} steps before splitting.{" "}
+              Tokens count every step from the task to the end of each branch, including the steps
+              they share. They share {comparison.shared_nodes} steps before splitting.{" "}
               {Math.round(comparison.tool_call_overlap * 100)}% of their tool calls after the split match.
             </p>
           </>

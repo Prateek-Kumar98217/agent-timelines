@@ -305,6 +305,7 @@ function EditForm({
 }
 
 interface Props {
+  turnLimit: number | null;
   open: boolean;
   node: TimelineNode | null;
   branch: BranchInfo | null;
@@ -315,7 +316,7 @@ interface Props {
   onForked: (branchId: string) => void;
 }
 
-export function Inspector({ open, node, branch, path, tools, onClose, onSelect, onForked }: Props) {
+export function Inspector({ turnLimit, open, node, branch, path, tools, onClose, onSelect, onForked }: Props) {
   const position = node ? path.findIndex((step) => step.id === node.id) : -1;
   const previous = position > 0 ? path[position - 1] : undefined;
   const next = position >= 0 ? path[position + 1] : undefined;
@@ -356,7 +357,7 @@ export function Inspector({ open, node, branch, path, tools, onClose, onSelect, 
           <p className="quiet small">
             {node.type === "root"
               ? "Every branch starts here."
-              : `${node.turn_index > 0 ? `Turn ${node.turn_index} on ` : "On "}${branch?.name ?? "this branch"}.`}
+              : `${node.turn_index > 0 ? `Turn ${node.turn_index}${turnLimit ? ` of ${turnLimit}` : ""} on ` : "On "}${branch?.name ?? "this branch"}.`}
             {tokens > 0 &&
               ` Used ${node.input_tokens.toLocaleString()} tokens in, ${node.output_tokens.toLocaleString()} out.`}
           </p>

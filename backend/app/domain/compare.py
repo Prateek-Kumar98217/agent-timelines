@@ -28,6 +28,8 @@ class BranchSummary:
     turns_used: int
     input_tokens: int
     output_tokens: int
+    # Tokens for every step from the root, including those before this branch forked.
+    path_tokens: int
     final_text: str | None
     tool_calls: list[str]
     scores: dict[str, float]
@@ -56,6 +58,7 @@ def _summary(session: Session, branch: Branch, path: list[Node]) -> BranchSummar
         turns_used=branch.turns_used,
         input_tokens=branch.input_tokens,
         output_tokens=branch.output_tokens,
+        path_tokens=sum(node.input_tokens + node.output_tokens for node in path),
         final_text=final_text,
         tool_calls=[
             f"{node.payload['name']}({_sorted_arguments(node)})"

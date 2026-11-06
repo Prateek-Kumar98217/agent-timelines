@@ -17,6 +17,7 @@ from app.api.schemas import (
     CreateTree,
     EventOut,
     ForkRequest,
+    LimitsOut,
     NodeOut,
     ProviderOut,
     SaveKey,
@@ -25,7 +26,7 @@ from app.api.schemas import (
 )
 from app.api.stream import event_stream, read_events
 from app.bootstrap import Runtime, get_runtime
-from app.db.models import Branch, Node, NodeType, Tree, User
+from app.db.models import NON_COMPLETED_STATUSES, Branch, Node, NodeType, Tree, User
 from app.domain.compare import BranchesNotComparableError, compare_branches
 from app.domain.config import AGENT_TOOLS, TreeConfig
 from app.domain.engine import cancel_branch, start_task
@@ -179,6 +180,25 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/api/limits")
+    def limits(rt: RuntimeDep, principal: PrincipalDep) -> LimitsOut:
+        with rt.session_factory() as session:
+            kind = session.get_one(User, principal.user_id).kind
+            active = session.execute(
+                select(func.count())
+                .select_from(Branch)
+                .where(
+                    Branch.owner_id == principal.user_id,
+                    Branch.status.in_(NON_COMPLETED_STATUSES),
+                )
+            ).scalar_one()
+        return LimitsOut(
+            role=kind,
+            active_branches=active,
+            max_active_branches=rt.deps.limits.for_kind(kind).active_branches,
+            max_turns=TreeConfig().turn_cap,
+        )
 
     @app.get("/api/providers")
     def providers(rt: RuntimeDep, principal: PrincipalDep) -> list[ProviderOut]:

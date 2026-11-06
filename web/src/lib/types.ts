@@ -81,6 +81,7 @@ export interface BranchSummary {
   turns_used: number;
   input_tokens: number;
   output_tokens: number;
+  path_tokens: number;
   final_text: string | null;
   tool_calls: string[];
   scores: Record<string, number>;
@@ -95,4 +96,11 @@ export interface Comparison {
   tool_call_overlap: number;
   final_similarity: number | null;
   converged: boolean | null;
+}
+
+export interface Limits {
+  role: string;
+  active_branches: number;
+  max_active_branches: number;
+  max_turns: number;
 }

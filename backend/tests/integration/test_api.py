@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Iterator
+from dataclasses import replace
 from uuid import UUID, uuid4
 
 import pytest
@@ -21,6 +22,7 @@ from app.db.models import User
 from app.db.session import SessionFactory
 from app.domain.engine import start_task
 from app.domain.keys import KeyStore
+from app.domain.limits import Limits
 from app.factory import Adapters
 from app.ports import Principal, PrincipalKind, TreeEvent
 from app.settings import Profile, Settings
@@ -47,6 +49,7 @@ class Api:
         settings = Settings(profile=Profile.TEST, allow_mock_llm=True, default_provider="mock")
         self.key_store = KeyStore(session_factory, b"k" * 32)
         runtime = Runtime(settings, adapters, session_factory, harness.deps, self.key_store)
+        self.runtime = runtime
         self.client = TestClient(create_app(runtime), headers={"Authorization": "Bearer token"})
 
     def start(self, task: str = "the task") -> tuple[str, str]:
@@ -213,6 +216,53 @@ def test_compare_measures_different_tool_calls(api: Api) -> None:
     comparison = api.client.get("/api/compare", params={"a": main, "b": fork["id"]}).json()
     assert comparison["tool_call_overlap"] == 0.0
     assert comparison["shared_nodes"] == 3
+
+
+def test_compare_totals_tokens_over_the_whole_path(api: Api) -> None:
+    tree = api.finished_tree()
+    main = tree["branches"][0]["id"]  # type: ignore[index]
+    result = node_of(tree, "tool_result")
+    fork = api.client.post(
+        f"/api/nodes/{result['id']}/fork", json={"edit": {"content": "edited"}}
+    ).json()
+    api.harness.drain()
+
+    after = api.client.get(f"/api/trees/{tree['id']}").json()
+    comparison = api.client.get("/api/compare", params={"a": main, "b": fork["id"]}).json()
+
+    by_id = {node["id"]: node for node in after["nodes"]}
+    node = max((n for n in after["nodes"] if n["branch_id"] == fork["id"]), key=lambda n: n["seq"])
+    total = 0
+    while node is not None:
+        total += node["input_tokens"] + node["output_tokens"]
+        node = by_id.get(node["parent_id"])
+    own = comparison["b"]["input_tokens"] + comparison["b"]["output_tokens"]
+    assert comparison["b"]["path_tokens"] == total
+    assert total > own
+
+
+@pytest.mark.parametrize(
+    ("kind", "max_active"),
+    [("local", 5), ("user", 3), ("guest", 1)],
+)
+def test_limits_follow_the_users_role(api: Api, kind: str, max_active: int) -> None:
+    with api.harness.session_factory() as session:
+        session.get_one(User, api.harness.user.id).kind = kind
+        session.commit()
+    # The shared test setup raises every limit, so this uses the real table.
+    runtime = replace(api.runtime, deps=replace(api.runtime.deps, limits=Limits()))
+    client = TestClient(create_app(runtime), headers={"Authorization": "Bearer token"})
+    body = client.get("/api/limits").json()
+    assert body["role"] == kind
+    assert body["max_active_branches"] == max_active
+    assert body["max_turns"] == 12
+
+
+def test_limits_count_only_unfinished_branches(api: Api) -> None:
+    api.start()
+    assert api.client.get("/api/limits").json()["active_branches"] == 1
+    api.harness.drain()
+    assert api.client.get("/api/limits").json()["active_branches"] == 0
 
 
 def test_compare_across_trees_is_refused(api: Api) -> None:

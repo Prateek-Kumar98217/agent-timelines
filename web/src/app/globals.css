@@ -326,6 +326,62 @@ textarea.field {
   white-space: nowrap;
 }
 
+/* What this user is allowed. One pip per allowed item, lit when it's in use. */
+.limits {
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1.5rem;
+  padding: 0.35rem 1rem 0.25rem;
+  background: var(--black);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+
+.home .limits {
+  margin-bottom: 1.25rem;
+  padding: 0.35rem 0 0.25rem;
+}
+
+.limits-role {
+  font-weight: 800;
+}
+
+.limit {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.5rem;
+}
+
+.limit-full b {
+  color: var(--lamp-red);
+}
+
+.pips {
+  display: inline-flex;
+  gap: 3px;
+  margin-top: -2px;
+}
+
+.pip {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--text-soft);
+  border-radius: 2px;
+}
+
+.pip-on {
+  background: var(--orange);
+  border-color: var(--orange);
+}
+
+.limit-full .pip-on {
+  background: var(--lamp-red);
+  border-color: var(--lamp-red);
+}
+
 /* Workspace: the map fills the screen and everything else slides over it. */
 .workspace {
   position: relative;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Composer } from "@/components/Composer";
 import { HeroTrack } from "@/components/HeroTrack";
+import { LimitsBar } from "@/components/LimitsBar";
 import { TreeList } from "@/components/TreeList";
 
 export default function HomePage() {
@@ -12,6 +13,7 @@ export default function HomePage() {
         </Link>
         <Link href="/keys">API keys</Link>
       </nav>
+      <LimitsBar />
       <div className="home-top">
         <Composer />
         <HeroTrack />

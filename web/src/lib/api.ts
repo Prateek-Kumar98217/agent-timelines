@@ -1,4 +1,4 @@
-import type { Branch, Comparison, Provider, Tree, TreeSummary } from "./types";
+import type { Branch, Comparison, Limits, Provider, Tree, TreeSummary } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -58,6 +58,7 @@ const post = (body?: unknown): RequestInit => ({
 });
 
 export const api = {
+  limits: () => request<Limits>("/api/limits"),
   providers: () => request<Provider[]>("/api/providers"),
   saveKey: (provider: string, apiKey: string) =>
     request<Provider>(`/api/keys/${provider}`, {

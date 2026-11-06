@@ -45,6 +45,13 @@ export function toolsOf(tree: Tree): ToolSpec[] {
   return config?.tools ?? [];
 }
 
+/** A tree keeps the turn limit it started with, so this can differ from today's default. */
+export function turnLimitOf(tree: Tree): number | null {
+  const root = tree.nodes.find((node) => node.parent_id === null);
+  const config = root?.payload.config as { turn_cap?: number } | undefined;
+  return config?.turn_cap ?? null;
+}
+
 export const taskOfTree = (tree: Tree): string => {
   const root = tree.nodes.find((node) => node.parent_id === null);
   return root ? taskOf(root) : "";

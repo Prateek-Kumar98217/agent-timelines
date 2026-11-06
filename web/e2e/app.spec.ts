@@ -79,6 +79,47 @@ test("live updates recover after the stream fails with a server error", async ({
   await expect(page.getByRole("status")).not.toContainText("reconnecting");
 });
 
+test("limits show on the home page and the map, for this user's role", async ({ page }) => {
+  await page.goto("/");
+  const home = page.locator(".limits");
+  await expect(home).toContainText("Local user");
+  await expect(home).toContainText(/Active branches\s*\d+ of 5/);
+  await expect(home).toContainText("Up to 12 turns per path");
+  await startTask(page);
+  const bar = page.locator(".limits");
+  await expect(bar).toContainText(/Active branches\s*0 of 5/);
+  await expect(bar).toContainText(/Original run\s*\d+ of 12 turns/);
+  await expect(bar.locator(".limit").first().locator(".pip")).toHaveCount(5);
+  await expect(bar.locator(".limit").nth(1).locator(".pip")).toHaveCount(12);
+});
+
+test("compare counts the tokens of the whole path", async ({ page }) => {
+  await startTask(page);
+  await stop(page, "Tool result: KB search, turn 1").click();
+  await page.getByRole("textbox", { name: "Result" }).fill("A changed result.");
+  await createBranchAndWait(page, "Branch 1");
+  await page.getByLabel("Compare Original run").check();
+  await page.getByLabel("Compare Branch 1", { exact: true }).check();
+  await page.getByRole("button", { name: "Compare branches" }).click();
+  const row = page.getByRole("row", { name: /Tokens, whole path/ });
+  await expect(row).toBeVisible();
+  const id = new URL(page.url()).searchParams.get("id");
+  const tree = await (await page.request.get(`/api/trees/${id}`)).json();
+  type Step = { id: string; parent_id: string | null; branch_id: string; seq: number; input_tokens: number; output_tokens: number };
+  const fork = tree.branches.find((branch: { parent_branch_id: string | null }) => branch.parent_branch_id);
+  const own: Step[] = tree.nodes.filter((step: Step) => step.branch_id === fork.id);
+  let step: Step | undefined = own.reduce((latest, next) => (next.seq > latest.seq ? next : latest));
+  let total = 0;
+  while (step) {
+    total += step.input_tokens + step.output_tokens;
+    const parent: string | null = step.parent_id;
+    step = tree.nodes.find((candidate: Step) => candidate.id === parent);
+  }
+  // A fork's own counter would leave out the steps before the split, so this must be larger.
+  expect(total).toBeGreaterThan(fork.input_tokens + fork.output_tokens);
+  await expect(row.getByRole("cell").nth(1)).toHaveText(total.toLocaleString());
+});
+
 test("every step shows its type and content without being opened", async ({ page }) => {
   const task = await startTask(page);
   await expect(page.locator(".block-task")).toContainText(task);
@@ -200,6 +241,32 @@ test("a new step pops up, then one arrow draws to it from the step before", asyn
     entrances(page).then((all) => all.find((entry) => entry.id === id)!.delay);
   expect(await delay("arrow-draw")).toBeGreaterThanOrEqual(320);
   expect(await delay("arrow-head")).toBeGreaterThan(await delay("arrow-draw"));
+});
+
+test("the fit button brings the whole tree into view", async ({ page }) => {
+  await startTask(page);
+  await expect(page.locator(".block-task")).toBeInViewport();
+  await expect(page.locator(".block-answer")).toBeInViewport();
+});
+
+test("every step has its arrow, and clicks don't rebuild them", async ({ page }) => {
+  await startTask(page);
+  await page.reload();
+  await page.locator(".block").first().waitFor();
+  const blocks = await page.locator(".block").count();
+  await expect(page.locator(".arrow")).toHaveCount(blocks - 1);
+  await page.evaluate(() => {
+    const state = window as unknown as { arrows: Element[] };
+    state.arrows = [...document.querySelectorAll(".arrow")];
+  });
+  await showWholeMap(page);
+  await stop(page, "Tool call: KB search, turn 1").click();
+  await page.locator(".terminus").first().click();
+  await page.waitForTimeout(300);
+  const kept = await page.evaluate(() =>
+    (window as unknown as { arrows: Element[] }).arrows.every((arrow) => arrow.isConnected),
+  );
+  expect(kept).toBe(true);
 });
 
 test("clicking steps and branches never replays an entrance", async ({ page }) => {

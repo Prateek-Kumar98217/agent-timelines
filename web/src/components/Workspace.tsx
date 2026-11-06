@@ -4,11 +4,20 @@ import { ReactFlowProvider } from "@xyflow/react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import { ACTIVE_STATUSES, type BranchInfo, describeBranches, pathTo, taskOfTree, toolsOf } from "@/lib/nodes";
+import {
+  ACTIVE_STATUSES,
+  type BranchInfo,
+  describeBranches,
+  pathTo,
+  taskOfTree,
+  toolsOf,
+  turnLimitOf,
+} from "@/lib/nodes";
 import { useTree } from "@/lib/useTree";
 import { BranchPanel } from "./BranchPanel";
 import { ComparePanel } from "./ComparePanel";
 import { Inspector } from "./Inspector";
+import { LimitsBar } from "./LimitsBar";
 import { TrackMap } from "./TrackMap";
 
 export function Workspace({ id }: { id: string }) {
@@ -128,6 +137,12 @@ export function Workspace({ id }: { id: string }) {
           Branches ({branches.length})
         </button>
       </header>
+      <LimitsBar
+        refreshKey={tree.last_event_seq}
+        turnLimit={turnLimitOf(tree)}
+        turnsUsed={info?.branch.turns_used ?? 0}
+        branchName={info?.name ?? ""}
+      />
       <div className="stage">
       <ReactFlowProvider>
         <TrackMap
@@ -171,6 +186,7 @@ export function Workspace({ id }: { id: string }) {
         }}
       />
       <Inspector
+        turnLimit={turnLimitOf(tree)}
         open={showStep}
         node={node}
         branch={info}
