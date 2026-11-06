@@ -218,6 +218,11 @@ textarea.field {
   padding: 1rem 0;
 }
 
+.home-links {
+  display: flex;
+  gap: 1.25rem;
+}
+
 .wordmark {
   flex: none;
   color: var(--orange);

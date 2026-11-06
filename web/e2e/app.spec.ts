@@ -161,6 +161,28 @@ test("a branch that finished normally can't be continued", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Continue branch" })).toHaveCount(0);
 });
 
+test("the test report is on the site, and links back to the app", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Test report" }).click();
+  await expect(page).toHaveURL(/\/report\.html$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Test report" })).toBeVisible();
+  await expect(page.getByText("Every result here comes from local tests.")).toBeVisible();
+  for (const name of ["LLM as a judge", "Retrieval (recall@k)", "Load", "Known limits"]) {
+    await expect(page.getByRole("heading", { name })).toBeVisible();
+  }
+  await page.getByRole("link", { name: "Back to the app" }).click();
+  await expect(page.getByLabel("What should the agent work out?")).toBeVisible();
+});
+
+test("the report fits a phone without sideways scrolling", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto("/report.html");
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
 test("every step shows its type and content without being opened", async ({ page }) => {
   const task = await startTask(page);
   await expect(page.locator(".block-task")).toContainText(task);

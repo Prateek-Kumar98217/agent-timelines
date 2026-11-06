@@ -18,7 +18,6 @@ tested, along with what closed it.
 | Traces stop at the gateway, with no spans inside the browser service or SearXNG | Slow page fetches show up as one long tool span | Accepted |
 | The web app proxies `/api` through a Next.js server and has no sign-in, guest or demo screens | The deployed build needs a static export, a configurable API address and these flows, and its live updates can't use this event stream as is, because `EventSource` can't send a token | Deferred |
 | The Next.js proxy can occasionally return a 500 when it reuses a connection the API closed after a live stream | Reads and the live stream recover by themselves, but a write such as creating a branch shows the error and needs another click | Accepted |
-| The load test now forks from tool results, and hasn't been rerun since | A mistake in it would show on the next run, and the published numbers used the older message edits | 11 |
 | Live updates in the browser tests fall back to the stream's 5-second poll | The tests prove updates arrive, not how quickly | Accepted |
 | A small model may answer from a fetched page without ever calling `task_search` | The store is there but goes unused on short tasks. In the live check `qwen3:4b` skipped it even when the task asked for it | Accepted |
 | `docker compose --profile ollama up --wait` exits with an error once `ollama-pull` finishes, though the stack is healthy | A script relying on the exit code would stop. CI doesn't use this profile | Accepted |
@@ -26,6 +25,7 @@ tested, along with what closed it.
 | Similarity can't tell a changed fact from the same fact | Edits that contradict a source changed the facts in 62% of runs and were flagged as diverged in 7%, so compare marks the changed words too | Accepted |
 | The convergence threshold comes from one model on 8 tasks | It may not suit other models, so it's a setting | Accepted |
 | The judge scores only 6 fixed answers, by hand, never in CI or on a schedule | It checks the fact checks on a small sample, and the rest of task success is deterministic | Accepted |
+| The compose job's log check fails on GitHub: no logs reach Loki there, though it passes locally, including on 4 CPUs | CI stays red on that job. It now prints Loki's and the collector's output on failure, to find the cause | Next CI run |
 | External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
 | The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
 
@@ -33,6 +33,7 @@ tested, along with what closed it.
 
 | Limitation | Closed by | Milestone |
 |---|---|---|
+| The load test hadn't been rerun after moving to tool result forks | Rerun in full, and the report uses the new numbers | 12 |
 | CI had never run on GitHub | The repo now has a remote. That first run exposed two setup errors, a setup-uv version that doesn't exist and no Python pin, both fixed | 12 |
 | Hidden model thinking counts toward the token budget | Raised the branch budget to 40,000 tokens. None of the 136 experiment branches ran out | 8 |
 | Short tasks could finish under the 4 to 12 turn target | Tasks ask for each step explicitly. All 8 main runs took 4 to 6 turns | 8 |
