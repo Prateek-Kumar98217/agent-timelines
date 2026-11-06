@@ -29,7 +29,6 @@ class ProviderOut(BaseModel):
 
 
 class LimitsOut(BaseModel):
-    role: str
     active_branches: int
     max_active_branches: int
     max_turns: int

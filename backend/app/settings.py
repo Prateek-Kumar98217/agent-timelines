@@ -8,7 +8,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Profile(StrEnum):
     LOCAL = "local"
-    DEPLOYED = "deployed"
     TEST = "test"
 
 
@@ -26,7 +25,7 @@ class Settings(BaseSettings):
     searxng_url: str = "http://127.0.0.1:18080"
     browser_url: str = "http://127.0.0.1:18081"
     gateway_url: str = "http://127.0.0.1:8100/mcp"
-    gateway_token_secret: str = "local-development-only-secret-do-not-deploy"  # noqa: S105
+    gateway_token_secret: str = "local-only-secret"  # noqa: S105
     convergence_threshold: float = 0.957
     otel_endpoint: str | None = None
     service_name: str = "agent-timelines"

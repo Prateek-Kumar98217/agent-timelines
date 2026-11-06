@@ -5,7 +5,7 @@ from app.adapters.llm import REQUEST_TIMEOUT_SECONDS
 from app.adapters.mcp_tools import McpToolExecutor
 from app.adapters.memory import InlineQueue
 from app.adapters.redis_store import RedisLiveEvents
-from app.factory import ProfileNotAvailableError, build_adapters
+from app.factory import build_adapters
 from app.settings import Profile, Settings
 
 
@@ -20,11 +20,6 @@ def test_local_profile_builds_real_infrastructure_adapters() -> None:
     assert isinstance(adapters.live_events, RedisLiveEvents)
     assert isinstance(adapters.tools, McpToolExecutor)
     assert adapters.auth.authenticate(None) is not None
-
-
-def test_unbuilt_deployed_profile_fails_clearly() -> None:
-    with pytest.raises(ProfileNotAvailableError, match="deployed"):
-        build_adapters(Settings(profile=Profile.DEPLOYED))
 
 
 def test_profile_comes_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -8,7 +8,6 @@ the path, so whatever the source branch does before or after can't leak in.
 import json
 import time
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -78,13 +77,12 @@ def fork_from_edit(
     edit: dict[str, Any],
     *,
     allow_noop: bool = False,
-    expires_at: datetime | None = None,
 ) -> UUID:
     """Create a branch with `edit` replacing the node. `allow_noop` is for evaluation runs."""
     started = time.perf_counter()
     with deps.telemetry.span("fork.create", {"node.id": str(node_id)}):
         page = _embed_edited_page(deps, node_id, edit)
-        branch_id, node_type = _fork(deps, owner_id, node_id, edit, allow_noop, expires_at, page)
+        branch_id, node_type = _fork(deps, owner_id, node_id, edit, allow_noop, page)
     deps.telemetry.record("fork.duration", time.perf_counter() - started, {"node_type": node_type})
     deps.telemetry.record("admission.accepted", 1, {"kind": "fork"})
     return branch_id
@@ -111,7 +109,6 @@ def _fork(
     node_id: UUID,
     edit: dict[str, Any],
     allow_noop: bool,
-    expires_at: datetime | None,
     page: list[tuple[str, list[float]]],
 ) -> tuple[UUID, str]:
     with deps.session_factory() as session:
@@ -134,9 +131,7 @@ def _fork(
             will_run=plan.next_action is not NextAction.NONE,
         )
         before = path_to(session, source.parent_id)
-        branch, state, events = _create_branch(
-            session, source, plan, before, owner_id, expires_at, extra_turns
-        )
+        branch, state, events = _create_branch(session, source, plan, before, owner_id, extra_turns)
         finished = plan.next_action is NextAction.NONE
         if finished:
             branch.status = BranchStatus.COMPLETED.value
@@ -257,7 +252,6 @@ def _create_branch(
     plan: _Plan,
     before: list[Node],
     owner_id: UUID,
-    expires_at: datetime | None,
     extra_turns: int,
 ) -> tuple[Branch, BranchState, list[TreeEvent]]:
     branch = Branch(
@@ -273,7 +267,6 @@ def _create_branch(
         output_tokens=0,
         step_seq=0,
         next_node_seq=0,
-        expires_at=expires_at,
     )
     session.add(branch)
     session.flush()

@@ -36,10 +36,6 @@ from app.settings import Profile, Settings
 LOCAL_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
 
 
-class ProfileNotAvailableError(RuntimeError):
-    """The profile's adapters have not been built yet."""
-
-
 class LocalAuthenticator:
     """The local build has one user unless GitHub sign-in is configured."""
 
@@ -81,10 +77,6 @@ def build_adapters(settings: Settings, key_lookup: KeyLookup | None = None) -> A
             )
         case Profile.LOCAL:
             return _build_local(settings, key_lookup or (lambda _user, _provider: None))
-        case Profile.DEPLOYED:
-            raise ProfileNotAvailableError(
-                f"adapters for the {settings.profile.value} profile are not implemented yet"
-            )
 
 
 def _build_local(settings: Settings, key_lookup: KeyLookup) -> Adapters:

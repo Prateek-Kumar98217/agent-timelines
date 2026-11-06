@@ -5,7 +5,6 @@ description = "API, step worker and agent for agent-timelines"
 requires-python = ">=3.14"
 dependencies = [
   "alembic",
-  "boto3",
   "celery",
   "cryptography",
   "fastapi",

@@ -79,10 +79,9 @@ test("live updates recover after the stream fails with a server error", async ({
   await expect(page.getByRole("status")).not.toContainText("reconnecting");
 });
 
-test("limits show on the home page and the map, for this user's role", async ({ page }) => {
+test("limits show on the home page and the map", async ({ page }) => {
   await page.goto("/");
   const home = page.locator(".limits");
-  await expect(home).toContainText("Local user");
   await expect(home).toContainText(/Active branches\s*\d+ of 5/);
   await expect(home).toContainText("Up to 12 turns per path");
   await startTask(page);

@@ -4,11 +4,6 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { Limits } from "@/lib/types";
 
-const ROLE_NAMES: Record<string, string> = {
-  local: "Local user",
-  user: "Signed in",
-  guest: "Guest",
-};
 // Branches on other tasks can start or finish while this page is open, with no event to say so.
 const REFRESH_MS = 10_000;
 const MOST_PIPS = 30;
@@ -61,7 +56,6 @@ export function LimitsBar({ refreshKey, turnLimit, turnsUsed, branchName }: Prop
 
   return (
     <section className="limits" aria-label="Your limits">
-      <span className="limits-role">{ROLE_NAMES[limits.role] ?? limits.role}</span>
       <span className={`limit ${full ? "limit-full" : ""}`}>
         <span>Active branches</span>
         <Pips used={limits.active_branches} limit={limits.max_active_branches} />

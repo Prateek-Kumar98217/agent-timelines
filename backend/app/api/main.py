@@ -200,7 +200,6 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
                 )
             ).scalar_one()
         return LimitsOut(
-            role=kind,
             active_branches=active,
             max_active_branches=rt.deps.limits.for_kind(kind).active_branches,
             max_turns=TreeConfig().turn_cap,

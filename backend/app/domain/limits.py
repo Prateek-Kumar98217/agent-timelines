@@ -26,15 +26,12 @@ class UserLimits:
     active_branches: int
     trees: int
     tokens_per_day: int
-    forks_per_day: int | None = None
     writes_per_minute: int = 120
 
 
 def _default_table() -> dict[str, UserLimits]:
     return {
         PrincipalKind.LOCAL.value: UserLimits(5, 1_000, 200_000),
-        PrincipalKind.USER.value: UserLimits(3, 1, 100_000, forks_per_day=20, writes_per_minute=30),
-        PrincipalKind.GUEST.value: UserLimits(1, 1, 10_000, forks_per_day=3, writes_per_minute=10),
     }
 
 
@@ -79,16 +76,6 @@ def admit_fork(
     if will_run:
         _check_tokens(rate_limiter, owner_id, user_limits)
         _check_active_and_queue(session, limits, user_limits, owner_id)
-    if user_limits.forks_per_day is not None:
-        decision = rate_limiter.consume(
-            f"forks:{owner_id}", 1, user_limits.forks_per_day, DAY_SECONDS
-        )
-        if not decision.allowed:
-            raise AdmissionRejectedError(
-                "forks_per_day",
-                f"you've used all {user_limits.forks_per_day} forks for today",
-                decision.retry_after_seconds,
-            )
 
 
 def daily_tokens_left(rate_limiter: RateLimiter, user_id: UUID, limit: int) -> int:

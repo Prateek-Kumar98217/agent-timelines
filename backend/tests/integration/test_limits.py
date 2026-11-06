@@ -128,20 +128,6 @@ def test_the_queue_limit_is_global_and_ignores_waiting_branches(clean_db: Sessio
     harness.queue.messages.clear()
 
 
-def test_daily_forks_are_limited_and_closing_forks_count_too(clean_db: SessionFactory) -> None:
-    harness = Harness(clean_db, [text_reply()], limits(forks_per_day=1))
-    _, main = start_task(harness.deps, harness.user.id, "t", CONFIG)
-    harness.drain()
-    llm_output = harness.nodes(main)[2]
-    fork_from_edit(harness.deps, harness.user.id, llm_output.id, {"text": "first"})
-    assert (
-        rejected_reason(
-            lambda: fork_from_edit(harness.deps, harness.user.id, llm_output.id, {"text": "two"})
-        )
-        == "forks_per_day"
-    )
-
-
 def test_daily_tokens_stop_a_running_branch_before_its_next_call(clean_db: SessionFactory) -> None:
     harness = Harness(clean_db, [tool_reply(tokens=30), text_reply()], limits(tokens_per_day=50))
     _, branch = start_task(harness.deps, harness.user.id, "t", CONFIG)
@@ -226,11 +212,7 @@ def test_rejections_are_recorded_by_reason(clean_db: SessionFactory) -> None:
     api.harness.queue.messages.clear()
 
 
-def test_limits_by_kind_match_the_plan() -> None:
-    table = Limits()
-    assert table.for_kind("local").active_branches == 5
-    assert table.for_kind("local").tokens_per_day == 200_000
-    assert table.for_kind("user").active_branches == 3
-    assert table.for_kind("user").forks_per_day == 20
-    assert table.for_kind("guest").active_branches == 1
-    assert table.for_kind("guest").tokens_per_day == 10_000
+def test_default_limits() -> None:
+    limits_for_local = Limits().for_kind("local")
+    assert limits_for_local.active_branches == 5
+    assert limits_for_local.tokens_per_day == 200_000

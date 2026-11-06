@@ -32,7 +32,7 @@ from tests.helpers import CONFIG, Harness
 class Api:
     def __init__(self, session_factory: SessionFactory) -> None:
         self.harness = Harness(session_factory, MockLLM(tool_turns=1))
-        auth = FakeAuthenticator({"token": Principal(self.harness.user.id, PrincipalKind.USER)})
+        auth = FakeAuthenticator({"token": Principal(self.harness.user.id, PrincipalKind.LOCAL)})
         harness = self.harness
         self.adapters = adapters = Adapters(
             queue=harness.queue,
@@ -242,21 +242,12 @@ def test_compare_totals_tokens_over_the_whole_path(api: Api) -> None:
     assert total > own
 
 
-@pytest.mark.parametrize(
-    ("kind", "max_active"),
-    [("local", 5), ("user", 3), ("guest", 1)],
-)
-def test_limits_follow_the_users_role(api: Api, kind: str, max_active: int) -> None:
-    with api.harness.session_factory() as session:
-        session.get_one(User, api.harness.user.id).kind = kind
-        session.commit()
+def test_limits_show_what_this_user_is_allowed(api: Api) -> None:
     # The shared test setup raises every limit, so this uses the real table.
     runtime = replace(api.runtime, deps=replace(api.runtime.deps, limits=Limits()))
     client = TestClient(create_app(runtime), headers={"Authorization": "Bearer token"})
     body = client.get("/api/limits").json()
-    assert body["role"] == kind
-    assert body["max_active_branches"] == max_active
-    assert body["max_turns"] == 12
+    assert body == {"active_branches": 0, "max_active_branches": 5, "max_turns": 12}
 
 
 def test_limits_count_only_unfinished_branches(api: Api) -> None:
@@ -419,7 +410,7 @@ def test_a_provider_without_a_key_cant_start_a_tree(api: Api) -> None:
 def test_no_provider_at_all_explains_what_to_do(clean_db: SessionFactory) -> None:
     api = Api(clean_db)
     settings = Settings(profile=Profile.TEST)
-    principal = Principal(api.harness.user.id, PrincipalKind.USER)
+    principal = Principal(api.harness.user.id, PrincipalKind.LOCAL)
     runtime = Runtime(settings, api.adapters, clean_db, api.harness.deps, api.key_store)
     with pytest.raises(HTTPException) as error:
         choose_provider(runtime, principal, None)
@@ -429,12 +420,12 @@ def test_no_provider_at_all_explains_what_to_do(clean_db: SessionFactory) -> Non
 
 @pytest.fixture
 def two_users(api: Api, clean_db: SessionFactory) -> tuple[Api, TestClient]:
-    """An API with a second signed-in user, who owns nothing yet."""
+    """An API with a second user, who owns nothing yet."""
     other = User(id=uuid4(), kind="local")
     with clean_db() as session:
         session.add(other)
         session.commit()
-    api.adapters.auth.principals["other"] = Principal(other.id, PrincipalKind.USER)  # type: ignore[attr-defined]
+    api.adapters.auth.principals["other"] = Principal(other.id, PrincipalKind.LOCAL)  # type: ignore[attr-defined]
     client = TestClient(api.client.app, headers={"Authorization": "Bearer other"})
     return api, client
 

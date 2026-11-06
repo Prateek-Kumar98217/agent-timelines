@@ -64,7 +64,7 @@ def test_fixture_browser_treats_unknown_input_as_blocked() -> None:
 
 
 def test_fake_authenticator_rejects_missing_and_unknown_tokens() -> None:
-    principal = Principal(uuid4(), PrincipalKind.GUEST)
+    principal = Principal(uuid4(), PrincipalKind.LOCAL)
     auth = FakeAuthenticator({"good": principal})
     assert auth.authenticate("good") == principal
     assert auth.authenticate("bad") is None
