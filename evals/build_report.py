@@ -324,7 +324,8 @@ def tests_section(tests: dict[str, int]) -> str:
   <ul>{checks}</ul>
   <p class="finding"><strong>The log check failed on GitHub.</strong> Loki refuses all writes once
   its disk is 90% full, and it reports this as "Ingester is shutting down". Forcing that limit
-  locally reproduced the same failure. The job now frees disk space before it builds.</p>
+  locally reproduced the same failure. The job now frees disk space before it builds, and CI
+  passes on GitHub with this fix and the one below.</p>
   <p class="finding"><strong>CI found a real bug.</strong> A step was marked as sent without the
   broker confirming it, so a broker dying at that moment lost the message and left the branch stuck
   for 5 minutes. Sends now wait for confirmation, which is why forks in the load test above got

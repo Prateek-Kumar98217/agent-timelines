@@ -141,7 +141,8 @@ tbody th { font-weight: 600; }
   <ul><li>20 parallel forks, with a stream of events showing no gaps</li><li>30 of 40 simultaneous forks accepted at a limit of 30, with the other 10 refused</li><li>A worker killed mid-step: the branch resumed with no duplicate or missing steps</li><li>The message broker stopped: nothing lost, and the branch finished after it returned</li><li>The message broker killed during a send: the step wasn&#x27;t lost</li><li>A waiting branch: no queue message and no active worker</li><li>The browser container: no route to internal services, no secrets, no access to agent tools</li><li>A saved API key: absent from every log, trace and metric</li><li>A website pointing its domain at this machine: refused</li><li>One trace across the API, worker and gateway, with all 12 dashboard panels returning data</li></ul>
   <p class="finding"><strong>The log check failed on GitHub.</strong> Loki refuses all writes once
   its disk is 90% full, and it reports this as "Ingester is shutting down". Forcing that limit
-  locally reproduced the same failure. The job now frees disk space before it builds.</p>
+  locally reproduced the same failure. The job now frees disk space before it builds, and CI
+  passes on GitHub with this fix and the one below.</p>
   <p class="finding"><strong>CI found a real bug.</strong> A step was marked as sent without the
   broker confirming it, so a broker dying at that moment lost the message and left the branch stuck
   for 5 minutes. Sends now wait for confirmation, which is why forks in the load test above got
