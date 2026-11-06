@@ -18,7 +18,7 @@ tested, along with what closed it.
 | Traces stop at the gateway, with no spans inside the browser service or SearXNG | Slow page fetches show up as one long tool span | Accepted |
 | Similarity can't tell a changed fact from the same fact | Edits that contradict a source changed the facts in 62% of runs and were flagged as diverged in 7%, so compare marks the changed words too | Accepted |
 | The convergence threshold comes from one model on 8 tasks | It may not suit other models, so it's a setting | Accepted |
-| The judge hasn't scored the experiment yet | Task success so far comes from deterministic fact checks only | 8 |
+| The judge scores only 6 fixed answers, by hand, never in CI or on a schedule | It checks the fact checks on a small sample, and the rest of task success is deterministic | Accepted |
 | External prices and free-tier limits come mostly from third-party pages | Costs or limits may differ from the plan | Deferred |
 | The `deployed` profile has no adapters | Only the local and test builds run | Deferred |
 | CI has never run on GitHub because the repo has no remote | A workflow problem could go unnoticed | When a remote is added |

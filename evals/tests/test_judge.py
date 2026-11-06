@@ -19,6 +19,7 @@ from judge import (
     JudgeQuotaError,
     agreement,
     judge_answer,
+    judged_set,
     read_api_key,
     run_judging,
 )
@@ -240,10 +241,11 @@ def test_branches_with_no_answer_cost_no_call(stub: Stub, clean_db: SessionFacto
     assert judge.calls == 0
 
 
-def test_limit_caps_the_number_scored(stub: Stub, clean_db: SessionFactory) -> None:
-    runs = make_runs(clean_db, 3)
-    counts = run_judging(clean_db, make_judge(stub), runs, limit=1)
-    assert (counts["scored"], counts["remaining"]) == (1, 2)
+def test_the_judged_set_is_small_and_mixes_right_and_wrong_answers() -> None:
+    with (Path(__file__).parents[2] / "docs" / "eval" / "runs.jsonl").open() as file:
+        chosen = judged_set([json.loads(line) for line in file])
+    assert len(chosen) == 6
+    assert sum(1 for run in chosen if run["fact_score"] == 1.0) == 3
 
 
 def test_agreement_with_the_fact_check(stub: Stub, clean_db: SessionFactory) -> None:
