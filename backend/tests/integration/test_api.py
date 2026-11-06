@@ -271,6 +271,31 @@ def test_continue_takes_a_finished_branch_and_refuses_others(api: Api) -> None:
     assert tree_id
 
 
+@pytest.mark.parametrize(
+    "headers",
+    [{"Host": "evil.test"}, {"X-Forwarded-Host": "evil.test"}, {"Host": "evil.test:8000"}],
+)
+def test_a_website_pointing_its_domain_at_this_machine_is_refused(
+    api: Api, headers: dict[str, str]
+) -> None:
+    response = api.client.get("/api/providers", headers=headers)
+    assert response.status_code == 400
+    assert response.text == "This API only answers on this machine."
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"Host": "localhost:8000"},
+        {"Host": "127.0.0.1"},
+        {"Host": "api:8000", "X-Forwarded-Host": "127.0.0.1:3001"},
+        {"Host": "[::1]:8000"},
+    ],
+)
+def test_this_machine_and_the_web_app_are_allowed(api: Api, headers: dict[str, str]) -> None:
+    assert api.client.get("/api/providers", headers=headers).status_code == 200
+
+
 def test_compare_across_trees_is_refused(api: Api) -> None:
     _, one = api.start("one")
     _, two = api.start("two")

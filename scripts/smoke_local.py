@@ -280,8 +280,19 @@ def check_broker_dies_during_a_send() -> None:
     print("ok   broker died during a send: the step wasn't lost")
 
 
+def check_only_this_machine_is_answered() -> None:
+    for target in (BASE, "http://127.0.0.1:3001"):
+        try:
+            refused = httpx.get(f"{target}/api/limits", headers={"Host": "evil.test"}, timeout=10)
+        except httpx.ConnectError:
+            continue  # This job doesn't start the web app.
+        assert refused.status_code == 400, f"{target} answered another site's domain"
+    print("ok   a website pointing its domain at this machine is refused")
+
+
 def main() -> None:
     assert client.get("/healthz").json() == {"status": "ok"}
+    check_only_this_machine_is_answered()
     check_run_forks_and_stream()
     check_limits_and_scope()
     check_tools_through_gateway()

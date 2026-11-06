@@ -102,8 +102,8 @@ export default function KeysPage() {
       </nav>
       <h1>API keys</h1>
       <p className="quiet">
-        Keys are encrypted and stored on this machine. Once saved, only the last four characters are
-        ever shown.
+        Keys are encrypted and stay on this machine. A key is only ever sent to its own provider,
+        when a task runs on it. Once saved, only the last four characters are shown.
       </p>
       {error && <p className="error">{error}</p>}
       {providers?.map((provider) => (
