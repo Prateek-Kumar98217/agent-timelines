@@ -37,6 +37,18 @@ describe("withoutTaskCopy", () => {
     ]);
   });
 
+  it("keeps follow-up messages further down a branch", () => {
+    const shown = withoutTaskCopy(
+      tree([
+        at("r", null, "root"),
+        at("u", "r", "user_msg"),
+        at("m", "u", "llm_output"),
+        at("f", "m", "user_msg"),
+      ]),
+    );
+    expect(shown.nodes.map((entry) => entry.id)).toEqual(["r", "m", "f"]);
+  });
+
   it("keeps older branches that edited the message", () => {
     const shown = withoutTaskCopy(
       tree([at("r", null, "root"), at("u", "r", "user_msg"), at("e", "r", "user_msg", "u")]),

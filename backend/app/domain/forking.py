@@ -30,7 +30,7 @@ from app.domain.events import append_event, publish_all
 from app.domain.limits import admit_fork
 from app.domain.messages import Message, messages_from_path, required_message
 from app.domain.outbox import add_step, dispatch_soon
-from app.domain.queries import load_config, path_to
+from app.domain.queries import extra_turns_on, load_config, path_to
 from app.domain.scratchpad import add_page, embed_page
 from app.domain.task_gate import task_problem
 from app.domain.tools import tool_call_problem
@@ -121,7 +121,8 @@ def _fork(
         if source.parent_id is None:
             raise NotEditableError("the root node can't be edited")
         config = load_config(session, source.tree_id)
-        plan = _plan_edit(source, edit, config)
+        extra_turns = extra_turns_on(path_to(session, source.id))
+        plan = _plan_edit(source, edit, config, config.turn_cap + extra_turns)
         if not allow_noop and _same_content(source, plan.node_payload):
             raise NoOpEditError("the edit doesn't change the node")
 
@@ -133,7 +134,9 @@ def _fork(
             will_run=plan.next_action is not NextAction.NONE,
         )
         before = path_to(session, source.parent_id)
-        branch, state, events = _create_branch(session, source, plan, before, owner_id, expires_at)
+        branch, state, events = _create_branch(
+            session, source, plan, before, owner_id, expires_at, extra_turns
+        )
         finished = plan.next_action is NextAction.NONE
         if finished:
             branch.status = BranchStatus.COMPLETED.value
@@ -165,7 +168,7 @@ def _fork(
     return branch_id, node_type
 
 
-def _plan_edit(source: Node, edit: dict[str, Any], config: TreeConfig) -> _Plan:
+def _plan_edit(source: Node, edit: dict[str, Any], config: TreeConfig, turn_limit: int) -> _Plan:
     if len(json.dumps(edit)) > config.max_edit_chars:
         raise InvalidEditError(f"edits are limited to {config.max_edit_chars} characters")
     match source.type:
@@ -176,14 +179,14 @@ def _plan_edit(source: Node, edit: dict[str, Any], config: TreeConfig) -> _Plan:
                 raise InvalidEditError(problem)
             return _Plan({"text": text}, NextAction.LLM)
         case NodeType.LLM_OUTPUT:
-            return _plan_llm_output(source, edit, config)
+            return _plan_llm_output(source, edit, config, turn_limit)
         case NodeType.TOOL_CALL:
             arguments = edit.get("arguments")
             if not isinstance(arguments, dict):
                 raise InvalidEditError("a tool call edit needs an 'arguments' object")
             name = source.payload["name"]
             _require_valid_call(config, name, arguments)
-            _require_turn_after(source, config)
+            _require_turn_after(source, turn_limit)
             payload = {"name": name, "arguments": arguments}
             return _Plan(payload, NextAction.TOOL, bypass_cache=True)
         case NodeType.TOOL_RESULT:
@@ -191,14 +194,16 @@ def _plan_edit(source: Node, edit: dict[str, Any], config: TreeConfig) -> _Plan:
             is_error = edit.get("is_error", False)
             if not isinstance(is_error, bool):
                 raise InvalidEditError("'is_error' must be true or false")
-            _require_turn_after(source, config)
+            _require_turn_after(source, turn_limit)
             payload = {"name": source.payload["name"], "content": content, "is_error": is_error}
             return _Plan(payload, NextAction.LLM)
         case _:
             raise NotEditableError(f"{source.type} nodes can't be edited")
 
 
-def _plan_llm_output(source: Node, edit: dict[str, Any], config: TreeConfig) -> _Plan:
+def _plan_llm_output(
+    source: Node, edit: dict[str, Any], config: TreeConfig, turn_limit: int
+) -> _Plan:
     text = edit.get("text")
     tool_call = edit.get("tool_call")
     if text is not None and not isinstance(text, str):
@@ -215,7 +220,7 @@ def _plan_llm_output(source: Node, edit: dict[str, Any], config: TreeConfig) -> 
     ):
         raise InvalidEditError("'tool_call' needs a 'name' and an 'arguments' object")
     _require_valid_call(config, tool_call["name"], tool_call["arguments"])
-    _require_turn_after(source, config)
+    _require_turn_after(source, turn_limit)
     call = {"name": tool_call["name"], "arguments": tool_call["arguments"]}
     payload = {"text": text or None, "tool_call": call, "dropped_tool_calls": 0}
     return _Plan(payload, NextAction.TOOL, bypass_cache=True, tool_call=call)
@@ -234,10 +239,10 @@ def _require_valid_call(config: TreeConfig, name: str, arguments: dict[str, Any]
         raise InvalidEditError(problem)
 
 
-def _require_turn_after(source: Node, config: TreeConfig) -> None:
+def _require_turn_after(source: Node, turn_limit: int) -> None:
     """A tool's result is only useful if the LLM gets another turn to read it."""
-    if source.turn_index >= config.turn_cap:
-        raise NoTurnsLeftError(f"this path has used all {config.turn_cap} turns")
+    if source.turn_index >= turn_limit:
+        raise NoTurnsLeftError(f"this path has used all {turn_limit} turns")
 
 
 def _same_content(source: Node, payload: dict[str, Any]) -> bool:
@@ -253,6 +258,7 @@ def _create_branch(
     before: list[Node],
     owner_id: UUID,
     expires_at: datetime | None,
+    extra_turns: int,
 ) -> tuple[Branch, BranchState, list[TreeEvent]]:
     branch = Branch(
         id=uuid4(),
@@ -262,6 +268,7 @@ def _create_branch(
         fork_node_id=source.id,
         status=BranchStatus.QUEUED.value,
         turns_used=source.turn_index,
+        extra_turns=extra_turns,
         input_tokens=0,
         output_tokens=0,
         step_seq=0,

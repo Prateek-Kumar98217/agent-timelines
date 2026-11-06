@@ -13,6 +13,7 @@ from app.adapters.llm import HOSTED_PROVIDERS, OLLAMA_DEFAULT_MODEL
 from app.api.schemas import (
     BranchOut,
     ComparisonOut,
+    ContinueRequest,
     Created,
     CreateTree,
     EventOut,
@@ -29,7 +30,12 @@ from app.bootstrap import Runtime, get_runtime
 from app.db.models import NON_COMPLETED_STATUSES, Branch, Node, NodeType, Tree, User
 from app.domain.compare import BranchesNotComparableError, compare_branches
 from app.domain.config import TreeConfig, tools_for
-from app.domain.engine import cancel_branch, start_task
+from app.domain.engine import (
+    ContinueRefusedError,
+    cancel_branch,
+    continue_branch,
+    start_task,
+)
 from app.domain.forking import (
     InvalidEditError,
     NodeNotFoundError,
@@ -285,7 +291,8 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
             if node is None:
                 raise HTTPException(404, f"node {node_id} not found")
             require_tree(session, node.tree_id, principal)
-            if node.type == NodeType.USER_MSG.value:
+            parent = session.get(Node, node.parent_id) if node.parent_id else None
+            if node.type == NodeType.USER_MSG and parent and parent.type == NodeType.ROOT:
                 raise HTTPException(409, TASK_IS_FIXED)
         try:
             branch_id = fork_from_edit(rt.deps, principal.user_id, node_id, body.edit)
@@ -304,6 +311,23 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
             require_branch(session, branch_id, principal)
         if not cancel_branch(rt.deps, branch_id):
             raise HTTPException(409, "the branch has already finished")
+        with rt.session_factory() as session:
+            return BranchOut.model_validate(session.get_one(Branch, branch_id))
+
+    @app.post("/api/branches/{branch_id}/continue")
+    def continue_(
+        branch_id: UUID,
+        body: ContinueRequest,
+        rt: RuntimeDep,
+        principal: PrincipalDep,
+        _limit: WriteLimit,
+    ) -> BranchOut:
+        with rt.session_factory() as session:
+            require_branch(session, branch_id, principal)
+        try:
+            continue_branch(rt.deps, principal.user_id, branch_id, body.text)
+        except ContinueRefusedError as exc:
+            raise HTTPException(409, str(exc)) from exc
         with rt.session_factory() as session:
             return BranchOut.model_validate(session.get_one(Branch, branch_id))
 

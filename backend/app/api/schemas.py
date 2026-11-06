@@ -35,6 +35,10 @@ class LimitsOut(BaseModel):
     max_turns: int
 
 
+class ContinueRequest(BaseModel):
+    text: str = Field(min_length=1)
+
+
 class ForkRequest(BaseModel):
     edit: dict[str, Any]
 
@@ -70,6 +74,7 @@ class BranchOut(BaseModel):
     status: str
     status_reason: str | None
     turns_used: int
+    extra_turns: int
     input_tokens: int
     output_tokens: int
     created_at: datetime

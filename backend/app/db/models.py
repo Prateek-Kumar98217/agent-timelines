@@ -126,6 +126,8 @@ class Branch(Base):
     status_reason: Mapped[str | None] = mapped_column(Text)
     # Turns used along the whole root-to-leaf path, so forks inherit them.
     turns_used: Mapped[int] = mapped_column(Integer, default=0)
+    # Turns beyond the tree's cap, earned by follow-up messages on this branch's path.
+    extra_turns: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Tokens spent by this branch only. Copied history cost nothing here.
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)

@@ -47,6 +47,7 @@ export interface Branch {
   status: BranchStatus;
   status_reason: string | null;
   turns_used: number;
+  extra_turns: number;
   input_tokens: number;
   output_tokens: number;
   created_at: string;

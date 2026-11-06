@@ -7,6 +7,8 @@ import { api } from "@/lib/api";
 import {
   ACTIVE_STATUSES,
   type BranchInfo,
+  canContinue,
+  changedTheTask,
   describeBranches,
   pathTo,
   taskOfTree,
@@ -41,11 +43,13 @@ export function Workspace({ id }: { id: string }) {
     [tree, info],
   );
   const highlighted = useMemo(() => new Set(path.map((node) => node.id)), [path]);
-  // A branch opens on the step that was edited to create it.
+  // A branch opens on the step that was edited to create it. One that hit its turn limit opens on
+  // its last step, which is where it can continue.
   const node =
     tree?.nodes.find((entry) => entry.id === selectedNodeId) ??
     (selectedNodeId === null && selectedBranchId
-      ? tree?.nodes.find((entry) => entry.branch_id === selectedBranchId && entry.edited_from_id)
+      ? ((info && canContinue(info.branch, tree ? turnLimitOf(tree) : null) ? info.lastNode : undefined) ??
+        tree?.nodes.find((entry) => entry.branch_id === selectedBranchId && entry.edited_from_id))
       : undefined) ??
     null;
 
@@ -106,6 +110,9 @@ export function Workspace({ id }: { id: string }) {
   }
   if (!tree) return <main className="centered-state quiet">Loading the task.</main>;
 
+  const baseTurnLimit = turnLimitOf(tree);
+  const selectedTurnLimit =
+    baseTurnLimit === null ? null : baseTurnLimit + (info?.branch.extra_turns ?? 0);
   const running = branches.filter((entry) => ACTIVE_STATUSES.has(entry.branch.status)).length;
   const compareA = branches.find((entry) => entry.branch.id === comparing[0]);
   const compareB = branches.find((entry) => entry.branch.id === comparing[1]);
@@ -139,7 +146,7 @@ export function Workspace({ id }: { id: string }) {
       </header>
       <LimitsBar
         refreshKey={tree.last_event_seq}
-        turnLimit={turnLimitOf(tree)}
+        turnLimit={selectedTurnLimit}
         turnsUsed={info?.branch.turns_used ?? 0}
         branchName={info?.name ?? ""}
       />
@@ -177,6 +184,8 @@ export function Workspace({ id }: { id: string }) {
           setShowBranches(false);
           setShowCompare(true);
         }}
+        turnLimit={turnLimitOf(tree)}
+        onContinued={forked}
         onCancel={(cancelled) => {
           setActionError(null);
           api
@@ -186,7 +195,12 @@ export function Workspace({ id }: { id: string }) {
         }}
       />
       <Inspector
-        turnLimit={turnLimitOf(tree)}
+        turnLimit={selectedTurnLimit}
+        taskChanged={node !== null && changedTheTask(tree, node)}
+        canContinue={
+          info !== null && canContinue(info.branch, baseTurnLimit) && node?.id === info.lastNode?.id
+        }
+        onContinued={forked}
         open={showStep}
         node={node}
         branch={info}

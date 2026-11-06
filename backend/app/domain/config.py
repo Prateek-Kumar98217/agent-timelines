@@ -13,6 +13,10 @@ DEFAULT_SYSTEM_PROMPT = (
 )
 
 
+# Turns a branch gains each time someone continues it with another message.
+EXTRA_TURNS_PER_MESSAGE = 4
+
+
 class ToolSpec(BaseModel):
     name: str
     description: str

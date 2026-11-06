@@ -5,8 +5,8 @@ every fork steps to the right. Everything else slides in over it when asked for.
 
 - **Colour:** canvas `#000000`, blocks `#141414`, lines `#3A3A3A`, text `#F2EFEA`, orange `#FF7A00`.
   Orange only ever means "you changed this" or "act here".
-- **Step types:** each has its own tag colour and name. Task off-white, You violet `#C4A7FF` (older
-  branches only), Model blue `#62C6FF`, Tool call green `#3DDC97`, Tool result yellow `#F2D544`.
+- **Step types:** each has its own tag colour and name. Task off-white, You violet `#C4A7FF` (follow-up
+  messages), Model blue `#62C6FF`, Tool call green `#3DDC97`, Tool result yellow `#F2D544`.
   Answers invert to a light block, so outcomes stand out at any zoom. Model and Answer blocks show
   their token count as a plain number.
 - **Tried and rejected:** coloured header bands with icons, tinted bodies and token meters on blocks.

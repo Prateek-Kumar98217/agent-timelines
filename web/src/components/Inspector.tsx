@@ -2,6 +2,7 @@
 
 import { type FormEvent, useId, useState } from "react";
 import { ApiError, api } from "@/lib/api";
+import { ContinueForm } from "./ContinueForm";
 import {
   ACTIVE_STATUSES,
   type BranchInfo,
@@ -306,6 +307,9 @@ function EditForm({
 
 interface Props {
   turnLimit: number | null;
+  taskChanged: boolean;
+  canContinue: boolean;
+  onContinued: (branchId: string) => void;
   open: boolean;
   node: TimelineNode | null;
   branch: BranchInfo | null;
@@ -316,7 +320,19 @@ interface Props {
   onForked: (branchId: string) => void;
 }
 
-export function Inspector({ turnLimit, open, node, branch, path, tools, onClose, onSelect, onForked }: Props) {
+export function Inspector({
+  turnLimit,
+  taskChanged,
+  canContinue,
+  onContinued,
+  open,
+  node,   branch,
+  path,
+  tools,
+  onClose,
+  onSelect,
+  onForked,
+}: Props) {
   const position = node ? path.findIndex((step) => step.id === node.id) : -1;
   const previous = position > 0 ? path[position - 1] : undefined;
   const next = position >= 0 ? path[position + 1] : undefined;
@@ -362,7 +378,10 @@ export function Inspector({ turnLimit, open, node, branch, path, tools, onClose,
               ` Used ${node.input_tokens.toLocaleString()} tokens in, ${node.output_tokens.toLocaleString()} out.`}
           </p>
           <NodeBody node={node} />
-          {node.edited_from_id && node.type !== "user_msg" && (
+          {canContinue && branch && (
+            <ContinueForm branch={branch.branch} turnLimit={turnLimit} onContinued={onContinued} />
+          )}
+          {node.edited_from_id && !taskChanged && (
             <p className="notice small">
               You edited this step.{" "}
               <button
@@ -377,7 +396,7 @@ export function Inspector({ turnLimit, open, node, branch, path, tools, onClose,
           {branch && isFinalAnswer(node) && ACTIVE_STATUSES.has(branch.branch.status) && (
             <p className="quiet small">This branch is still finishing.</p>
           )}
-          {node.type === "root" || node.type === "user_msg" ? (
+          {node.type === "root" || taskChanged ? (
             <p className="notice small" style={{ marginTop: "1rem" }}>
               {node.type === "root"
                 ? "The task can't be changed. To explore another path, edit any later step."

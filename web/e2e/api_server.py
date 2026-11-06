@@ -35,7 +35,7 @@ from app.domain.engine import run_step
 from app.domain.keys import KeyStore
 from app.domain.sweeper import sweep
 from app.factory import LOCAL_USER_ID, Adapters
-from app.ports import Principal, PrincipalKind, StepMessage
+from app.ports import LLMRequest, LLMResponse, Principal, PrincipalKind, StepMessage
 from app.settings import Profile, Settings
 
 BACKEND_DIR = Path(__file__).resolve().parents[2] / "backend"
@@ -46,6 +46,15 @@ PORT = int(os.environ.get("E2E_API_PORT", "8001"))
 class LocalAuth:
     def authenticate(self, token: str | None) -> Principal:
         return Principal(LOCAL_USER_ID, PrincipalKind.LOCAL)
+
+
+class ScriptedRuns(MockLLM):
+    """A task containing `[run long]` keeps calling tools, so its branch reaches the turn limit."""
+
+    def complete(self, request: LLMRequest) -> LLMResponse:
+        task = next((m["content"] for m in request.messages if m["role"] == "user"), "")
+        self.tool_turns = 100 if "[run long]" in task else 2
+        return super().complete(request)
 
 
 class ThreadQueue:
@@ -100,7 +109,7 @@ def main() -> None:
         steps = ThreadQueue()
         adapters = Adapters(
             queue=steps,
-            llm=MockLLM(latency_seconds=0.4, tool_turns=2),
+            llm=ScriptedRuns(latency_seconds=0.4, tool_turns=2),
             tools=FixtureTools(),
             cache=MemoryCache(),
             rate_limiter=MemoryRateLimiter(),

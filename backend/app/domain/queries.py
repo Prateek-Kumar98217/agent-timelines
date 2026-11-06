@@ -6,7 +6,7 @@ from sqlalchemy import literal, select
 from sqlalchemy.orm import Session, aliased
 
 from app.db.models import Node, NodeType
-from app.domain.config import TreeConfig
+from app.domain.config import EXTRA_TURNS_PER_MESSAGE, TreeConfig
 
 
 def load_config(session: Session, tree_id: UUID) -> TreeConfig:
@@ -36,3 +36,9 @@ def path_to(session: Session, node_id: UUID) -> list[Node]:
             .order_by(ancestors.c.depth.desc())
         ).scalars()
     )
+
+
+def extra_turns_on(path: list[Node]) -> int:
+    """Turns earned by follow-up messages. The first message after the root is the task itself."""
+    follow_ups = sum(1 for node in path[2:] if node.type == NodeType.USER_MSG)
+    return follow_ups * EXTRA_TURNS_PER_MESSAGE
